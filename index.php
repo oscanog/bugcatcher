@@ -35,6 +35,7 @@ if (isset($_SESSION['id'])) {
     background-repeat: no-repeat;
 
     min-height: 100vh;
+    overflow-x: hidden;
 }
         /* Navbar */
         .navbar {
@@ -42,8 +43,10 @@ if (isset($_SESSION['id'])) {
             backdrop-filter: blur(10px);
             padding: 1rem 2rem;
             display: flex;
+            flex-wrap: wrap;
             justify-content: space-between;
             align-items: center;
+            gap: 0.75rem 1rem;
             position: fixed;
             top: 0;
             left: 0;
@@ -66,6 +69,14 @@ if (isset($_SESSION['id'])) {
             animation: bounce 2s infinite;
         }
 
+        .nav-links {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: center;
+            gap: 1.5rem;
+        }
+
         @keyframes bounce {
             0%, 100% { transform: translateY(0); }
             50% { transform: translateY(-5px); }
@@ -74,7 +85,6 @@ if (isset($_SESSION['id'])) {
         .nav-links a {
             color: #c9d1d9;
             text-decoration: none;
-            margin-left: 1.5rem;
             font-weight: 500;
             transition: color 0.3s ease;
         }
@@ -91,9 +101,18 @@ if (isset($_SESSION['id'])) {
             justify-content: center;
             align-items: center;
             text-align: center;
-            padding: 6rem 2rem 2rem;
+            padding: 7rem 2rem 3rem;
             position: relative;
             min-height: 100vh;
+        }
+
+        .animation-stage {
+            width: min(100%, 600px);
+            height: 300px;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            margin-bottom: 2rem;
         }
 
         /* Animation Container */
@@ -101,7 +120,12 @@ if (isset($_SESSION['id'])) {
             position: relative;
             width: 600px;
             height: 300px;
-            margin-bottom: 2rem;
+            flex: 0 0 600px;
+            --scene-scale: 1;
+            --tilt-x: 0deg;
+            --tilt-y: 0deg;
+            transform: perspective(1000px) scale(var(--scene-scale)) rotateY(var(--tilt-x)) rotateX(var(--tilt-y));
+            transform-origin: center top;
         }
 
         /* Ground line */
@@ -810,21 +834,22 @@ if (isset($_SESSION['id'])) {
         }
 
         @keyframes screenShake {
-            0%, 100% { transform: translateX(0); }
-            10% { transform: translateX(-3px) rotate(-0.5deg); }
-            20% { transform: translateX(3px) rotate(0.5deg); }
-            30% { transform: translateX(-3px) rotate(-0.5deg); }
-            40% { transform: translateX(3px) rotate(0.5deg); }
-            50% { transform: translateX(-2px) rotate(-0.3deg); }
-            60% { transform: translateX(2px) rotate(0.3deg); }
-            70% { transform: translateX(-1px) rotate(-0.2deg); }
-            80% { transform: translateX(1px) rotate(0.2deg); }
-            90% { transform: translateX(0) rotate(0); }
+            0%, 100% { transform: perspective(1000px) scale(var(--scene-scale)) rotateY(var(--tilt-x)) rotateX(var(--tilt-y)) translateX(0); }
+            10% { transform: perspective(1000px) scale(var(--scene-scale)) rotateY(var(--tilt-x)) rotateX(var(--tilt-y)) translateX(-3px) rotate(-0.5deg); }
+            20% { transform: perspective(1000px) scale(var(--scene-scale)) rotateY(var(--tilt-x)) rotateX(var(--tilt-y)) translateX(3px) rotate(0.5deg); }
+            30% { transform: perspective(1000px) scale(var(--scene-scale)) rotateY(var(--tilt-x)) rotateX(var(--tilt-y)) translateX(-3px) rotate(-0.5deg); }
+            40% { transform: perspective(1000px) scale(var(--scene-scale)) rotateY(var(--tilt-x)) rotateX(var(--tilt-y)) translateX(3px) rotate(0.5deg); }
+            50% { transform: perspective(1000px) scale(var(--scene-scale)) rotateY(var(--tilt-x)) rotateX(var(--tilt-y)) translateX(-2px) rotate(-0.3deg); }
+            60% { transform: perspective(1000px) scale(var(--scene-scale)) rotateY(var(--tilt-x)) rotateX(var(--tilt-y)) translateX(2px) rotate(0.3deg); }
+            70% { transform: perspective(1000px) scale(var(--scene-scale)) rotateY(var(--tilt-x)) rotateX(var(--tilt-y)) translateX(-1px) rotate(-0.2deg); }
+            80% { transform: perspective(1000px) scale(var(--scene-scale)) rotateY(var(--tilt-x)) rotateX(var(--tilt-y)) translateX(1px) rotate(0.2deg); }
+            90% { transform: perspective(1000px) scale(var(--scene-scale)) rotateY(var(--tilt-x)) rotateX(var(--tilt-y)) translateX(0) rotate(0); }
         }
 
         /* Hero Content */
         .hero-content {
             max-width: 700px;
+            width: 100%;
             z-index: 10;
         }
 
@@ -871,10 +896,16 @@ if (isset($_SESSION['id'])) {
             box-shadow: 0 8px 25px rgba(45, 164, 78, 0.4);
         }
 
+        .hero-actions {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 1rem;
+        }
+
         .btn-secondary {
             background: transparent;
             border: 2px solid #30363d;
-            margin-left: 1rem;
             box-shadow: none;
         }
 
@@ -886,6 +917,7 @@ if (isset($_SESSION['id'])) {
         /* Stats Section */
         .stats {
             display: flex;
+            flex-wrap: wrap;
             gap: 4rem;
             margin-top: 3rem;
             padding: 0;
@@ -896,6 +928,7 @@ if (isset($_SESSION['id'])) {
 
         .stat {
             text-align: center;
+            min-width: 120px;
         }
 
         .stat-value {
@@ -1001,10 +1034,32 @@ if (isset($_SESSION['id'])) {
 
         /* Responsive */
         @media (max-width: 768px) {
-            .animation-container {
+            body {
+                background-attachment: scroll;
+            }
+
+            .navbar {
+                padding: 1rem;
+                justify-content: center;
+            }
+
+            .nav-links {
                 width: 100%;
-                max-width: 400px;
-                height: 200px;
+                gap: 1rem;
+            }
+
+            .hero {
+                min-height: auto;
+                padding: 8rem 1rem 3rem;
+            }
+
+            .animation-stage {
+                height: 220px;
+                margin-bottom: 1rem;
+            }
+
+            .animation-container {
+                --scene-scale: 0.72;
             }
 
             .hero h1 {
@@ -1020,20 +1075,75 @@ if (isset($_SESSION['id'])) {
                 font-size: 1rem;
             }
 
-            .btn-secondary {
-                margin-left: 0;
-                margin-top: 1rem;
+            .hero-actions {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .hero-actions .btn {
+                width: 100%;
             }
 
             .stats {
-                flex-direction: row;
-                flex-wrap: wrap;
                 gap: 2rem;
                 justify-content: center;
             }
 
+            .caught-indicator {
+                padding: 10px 20px;
+                font-size: 0.95rem;
+            }
+
+            .speech-bubble {
+                bottom: 165px;
+                padding: 9px 14px;
+                font-size: 0.82rem;
+            }
+
             .features-grid {
                 grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-width: 520px) {
+            .animation-stage {
+                height: 180px;
+            }
+
+            .animation-container {
+                --scene-scale: 0.56;
+            }
+
+            .hero h1 {
+                font-size: 1.65rem;
+            }
+
+            .hero p {
+                font-size: 0.95rem;
+            }
+
+            .stats {
+                gap: 1.25rem;
+            }
+
+            .stat {
+                min-width: calc(50% - 0.75rem);
+            }
+
+            .stat-value {
+                font-size: 2rem;
+            }
+
+            .features {
+                padding: 4rem 1rem;
+            }
+
+            .section-title h2 {
+                font-size: 2rem;
+            }
+
+            .feature {
+                padding: 1.5rem;
             }
         }
 
@@ -1101,6 +1211,7 @@ if (isset($_SESSION['id'])) {
     
     <div class="hero">
         <!-- Animation Scene -->
+        <div class="animation-stage">
         <div class="animation-container">
             <!-- Ground decorations -->
             <div class="grass"></div>
@@ -1152,11 +1263,12 @@ if (isset($_SESSION['id'])) {
             <!-- Success indicator -->
             <div class="caught-indicator" id="caughtIndicator">Bug Caught!</div>
         </div>
+        </div>
 
         <div class="hero-content">
             <h1>Track Bugs Like a <span>Pro</span></h1>
             <p>BugCatcher helps you manage and track issues in your projects. Simple, fast, and effective issue tracking for teams of all sizes.</p>
-            <div>
+            <div class="hero-actions">
                 <a href="register-passed-by-maglaque/login.php" class="btn">Get Started</a>
                 <a href="#features" class="btn btn-secondary">Learn More</a>
             </div>
@@ -1367,13 +1479,27 @@ if (isset($_SESSION['id'])) {
             });
         });
 
-        // Add parallax effect on mouse move
-        document.addEventListener('mousemove', (e) => {
-            const x = (e.clientX / window.innerWidth - 0.5) * 10;
-            const y = (e.clientY / window.innerHeight - 0.5) * 10;
-            
-            animationContainer.style.transform = `perspective(1000px) rotateY(${x * 0.2}deg) rotateX(${-y * 0.2}deg)`;
-        });
+        // Add parallax effect on mouse move for larger screens only
+        const canUseParallax = window.matchMedia('(min-width: 769px) and (hover: hover) and (pointer: fine)');
+
+        function setSceneTilt(xDeg, yDeg) {
+            animationContainer.style.setProperty('--tilt-x', `${xDeg}deg`);
+            animationContainer.style.setProperty('--tilt-y', `${yDeg}deg`);
+        }
+
+        function handleParallax(e) {
+            if (!canUseParallax.matches) {
+                setSceneTilt(0, 0);
+                return;
+            }
+
+            const x = (e.clientX / window.innerWidth - 0.5) * 2;
+            const y = (e.clientY / window.innerHeight - 0.5) * -2;
+            setSceneTilt(x, y);
+        }
+
+        document.addEventListener('mousemove', handleParallax);
+        canUseParallax.addEventListener('change', () => setSceneTilt(0, 0));
     </script>
 </body>
 </html>
