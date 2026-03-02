@@ -570,6 +570,7 @@ if ($activeOrg) {
     <meta charset="UTF-8">
     <title>BugCatcher - Organization</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
     <link rel="stylesheet" href="dashboard.css?v=5">
     <link rel="stylesheet" href="organization.css?v=1">
 </head>

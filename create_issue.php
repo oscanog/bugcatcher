@@ -164,6 +164,7 @@ $labels = $conn->query("SELECT id, name, color FROM labels ORDER BY name ASC");
 
 <head>
     <meta charset="UTF-8">
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
     <title>New Issue · BugCatcher</title>
     <link rel="stylesheet" href="dashboard.css?v=8">
 </head>
