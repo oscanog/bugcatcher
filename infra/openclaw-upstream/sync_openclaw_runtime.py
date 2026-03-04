@@ -9,6 +9,9 @@ from pathlib import Path
 
 
 PLUGIN_ID = "bugcatcher-openclaw"
+BUILTIN_PROVIDER_ENV_KEYS = {
+    "kimi-coding": "KIMI_API_KEY",
+}
 
 
 def load_json(path: Path) -> dict:
@@ -82,7 +85,7 @@ def update_discord_runtime(config: dict, snapshot: dict) -> bool:
     return changed
 
 
-def build_provider_models(snapshot: dict) -> tuple[dict, str | None, str | None]:
+def build_provider_models(snapshot: dict) -> tuple[dict, dict, str | None, str | None]:
     providers = snapshot.get("providers") or []
     models = snapshot.get("models") or []
     runtime = snapshot.get("runtime") or {}
@@ -96,9 +99,14 @@ def build_provider_models(snapshot: dict) -> tuple[dict, str | None, str | None]
         models_by_provider.setdefault(provider_id, []).append(model)
 
     provider_configs: dict[str, dict] = {}
+    env_updates: dict[str, str] = {}
     for provider_id, provider in providers_by_id.items():
         provider_key = str(provider.get("provider_key") or "").strip()
         if not provider_key:
+            continue
+        builtin_env_key = BUILTIN_PROVIDER_ENV_KEYS.get(provider_key)
+        if builtin_env_key:
+            env_updates[builtin_env_key] = str(provider.get("api_key") or "").strip()
             continue
         provider_models = []
         for model in models_by_provider.get(provider_id, []):
@@ -170,11 +178,11 @@ def build_provider_models(snapshot: dict) -> tuple[dict, str | None, str | None]
             if image_model_ref is not None:
                 break
 
-    return provider_configs, primary_model_ref, image_model_ref
+    return provider_configs, env_updates, primary_model_ref, image_model_ref
 
 
 def update_model_runtime(config: dict, snapshot: dict) -> bool:
-    provider_configs, primary_model_ref, image_model_ref = build_provider_models(snapshot)
+    provider_configs, env_updates, primary_model_ref, image_model_ref = build_provider_models(snapshot)
     changed = False
 
     models_cfg = config.setdefault("models", {})
@@ -186,6 +194,18 @@ def update_model_runtime(config: dict, snapshot: dict) -> bool:
     if current_providers != provider_configs:
         models_cfg["providers"] = provider_configs
         changed = True
+
+    env_cfg = config.setdefault("env", {})
+    for env_key in BUILTIN_PROVIDER_ENV_KEYS.values():
+        desired_value = env_updates.get(env_key, "")
+        current_value = str(env_cfg.get(env_key) or "")
+        if desired_value:
+            if current_value != desired_value:
+                env_cfg[env_key] = desired_value
+                changed = True
+        elif env_key in env_cfg:
+            env_cfg.pop(env_key, None)
+            changed = True
 
     agents = config.setdefault("agents", {})
     defaults = agents.setdefault("defaults", {})
