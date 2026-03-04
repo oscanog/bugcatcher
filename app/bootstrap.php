@@ -18,6 +18,10 @@ function bugcatcher_default_config(): array
         'CHECKLIST_UPLOADS_DIR' => dirname(__DIR__) . DIRECTORY_SEPARATOR . 'uploads' . DIRECTORY_SEPARATOR . 'checklists',
         'CHECKLIST_UPLOADS_URL' => 'uploads/checklists',
         'CHECKLIST_BOT_SHARED_SECRET' => 'replace-me',
+        'OPENCLAW_INTERNAL_SHARED_SECRET' => 'replace-me-too',
+        'OPENCLAW_ENCRYPTION_KEY' => 'replace-with-32-byte-secret',
+        'OPENCLAW_TEMP_UPLOAD_DIR' => dirname(__DIR__) . DIRECTORY_SEPARATOR . 'uploads' . DIRECTORY_SEPARATOR . 'openclaw-tmp',
+        'OPENCLAW_LOG_LEVEL' => 'info',
     ];
 }
 
@@ -65,6 +69,10 @@ function bugcatcher_load_config(): array
     $config['CHECKLIST_UPLOADS_URL'] = trim(str_replace('\\', '/', (string) ($config['CHECKLIST_UPLOADS_URL'] ?? 'uploads/checklists')), '/');
     $config['CHECKLIST_UPLOADS_DIR'] = rtrim((string) ($config['CHECKLIST_UPLOADS_DIR'] ?? ''), "\\/");
     $config['CHECKLIST_BOT_SHARED_SECRET'] = (string) ($config['CHECKLIST_BOT_SHARED_SECRET'] ?? '');
+    $config['OPENCLAW_INTERNAL_SHARED_SECRET'] = (string) ($config['OPENCLAW_INTERNAL_SHARED_SECRET'] ?? '');
+    $config['OPENCLAW_ENCRYPTION_KEY'] = (string) ($config['OPENCLAW_ENCRYPTION_KEY'] ?? '');
+    $config['OPENCLAW_TEMP_UPLOAD_DIR'] = rtrim((string) ($config['OPENCLAW_TEMP_UPLOAD_DIR'] ?? ''), "\\/");
+    $config['OPENCLAW_LOG_LEVEL'] = (string) ($config['OPENCLAW_LOG_LEVEL'] ?? 'info');
 
     return $config;
 }
@@ -120,6 +128,21 @@ function bugcatcher_clear_known_user_browser(): void
 function bugcatcher_is_known_user_browser(): bool
 {
     return ($_COOKIE[BUGCATCHER_KNOWN_USER_COOKIE] ?? '') === '1';
+}
+
+function bugcatcher_normalize_system_role(?string $role): string
+{
+    return in_array($role, ['super_admin', 'admin', 'user'], true) ? (string) $role : 'user';
+}
+
+function bugcatcher_is_super_admin_role(?string $role): bool
+{
+    return bugcatcher_normalize_system_role($role) === 'super_admin';
+}
+
+function bugcatcher_is_system_admin_role(?string $role): bool
+{
+    return in_array(bugcatcher_normalize_system_role($role), ['super_admin', 'admin'], true);
 }
 
 function bugcatcher_start_session(): void
@@ -246,4 +269,9 @@ function bugcatcher_checklist_upload_absolute_path(string $storedPath): ?string
     }
 
     return $candidate;
+}
+
+function bugcatcher_openclaw_temp_dir(): string
+{
+    return (string) bugcatcher_config('OPENCLAW_TEMP_UPLOAD_DIR');
 }

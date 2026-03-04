@@ -1,0 +1,17 @@
+[Unit]
+Description=OpenClaw Discord bot
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=bugcatcher
+Group=www-data
+WorkingDirectory=/var/www/bugcatcher/current/services/openclaw
+EnvironmentFile=/etc/bugcatcher/openclaw.env
+ExecStart=/var/www/bugcatcher/.venv-openclaw/bin/python -m openclaw_bot.main
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

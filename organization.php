@@ -583,9 +583,13 @@ if ($activeOrg) {
             <a href="organization.php" class="active">Organization</a>
             <a href="project-passed-by-melvin/project_list.php">Projects</a>
             <a href="checklist-passed-by-melvin/checklist_list.php">Checklist</a>
-            <?php if ($current_role == 'admin'): ?>
+            <a href="discord-link.php">Discord Link</a>
+            <?php if (bugcatcher_is_system_admin_role($current_role)): ?>
                 <a href="#">Manage Users</a>
                 <a href="#">All Reports</a>
+            <?php endif; ?>
+            <?php if (bugcatcher_is_super_admin_role($current_role)): ?>
+                <a href="super-admin/openclaw.php">Super Admin</a>
             <?php endif; ?>
             <a href="register-passed-by-maglaque/logout.php" class="nav-logout">Logout</a>
         </nav>

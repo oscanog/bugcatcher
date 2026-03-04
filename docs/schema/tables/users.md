@@ -12,7 +12,7 @@ Stores application accounts, authentication data, the system-level role, and the
 | `username` | `VARCHAR(100)` | No | none | Unique login/display name. |
 | `email` | `VARCHAR(255)` | No | none | Unique login identifier. |
 | `password` | `VARCHAR(255)` | No | none | Password hash. |
-| `role` | `ENUM('admin','user')` | Yes | `user` | System-level role, not organization role. |
+| `role` | `ENUM('super_admin','admin','user')` | Yes | `user` | System-level role, not organization role. |
 | `created_at` | `TIMESTAMP` | No | `CURRENT_TIMESTAMP` | Account creation time. |
 | `last_active_org_id` | `INT(11)` | Yes | `NULL` | Remembers the organization restored on login. |
 
@@ -34,7 +34,7 @@ Stores application accounts, authentication data, the system-level role, and the
 
 - Authentication reads `email`, `password`, `role`, and `last_active_org_id` during login.
 - Signup inserts new `user` records.
-- `role` is used to distinguish system admin from regular user behavior.
+- `role` is used to distinguish super admin, system admin, and regular user behavior.
 - `last_active_org_id` is restored at login and updated when the user selects a different active organization.
 - Organization-specific permissions are not stored here. Those come from `org_members.role`.
 

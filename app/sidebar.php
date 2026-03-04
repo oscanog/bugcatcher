@@ -1,8 +1,14 @@
 <?php
 
+require_once __DIR__ . '/bootstrap.php';
+
 function bugcatcher_sidebar_href(string $activePage): string
 {
     switch ($activePage) {
+        case 'discord_link':
+            return '/discord-link.php';
+        case 'super_admin':
+            return '/super-admin/openclaw.php';
         case 'projects':
             return '/project-passed-by-melvin/project_list.php';
         case 'checklist':
@@ -27,7 +33,11 @@ function bugcatcher_render_sidebar(
         'organization' => ['label' => 'Organization', 'href' => '/organization.php'],
         'projects' => ['label' => 'Projects', 'href' => '/project-passed-by-melvin/project_list.php'],
         'checklist' => ['label' => 'Checklist', 'href' => '/checklist-passed-by-melvin/checklist_list.php'],
+        'discord_link' => ['label' => 'Discord Link', 'href' => '/discord-link.php'],
     ];
+    if (bugcatcher_is_super_admin_role($currentRole)) {
+        $nav['super_admin'] = ['label' => 'Super Admin', 'href' => '/super-admin/openclaw.php'];
+    }
     ?>
     <aside class="bc-sidebar">
         <div class="bc-logo">BugCatcher</div>

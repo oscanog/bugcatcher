@@ -6,8 +6,8 @@ USE bug_catcher;
 
 INSERT INTO users (username, email, password, role)
 VALUES (
-  'CHANGE_ME_ADMIN',
-  'admin@example.com',
+  'CHANGE_ME_SUPER_ADMIN',
+  'super-admin@example.com',
   'CHANGE_ME_WITH_PASSWORD_HASH',
-  'admin'
+  'super_admin'
 );

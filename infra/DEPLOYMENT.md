@@ -7,6 +7,7 @@ This repo is prepared for release-based deployment on a Debian Google Compute En
 - Put your production config at `/var/www/bugcatcher/shared/config.php`
 - Keep uploads in `/var/www/bugcatcher/shared/uploads/issues`
 - Keep checklist uploads in `/var/www/bugcatcher/shared/uploads/checklists`
+- Keep OpenClaw temp uploads in `/var/www/bugcatcher/shared/uploads/openclaw-tmp`
 - Import the database in this order:
   1. `infra/database/schema.sql`
   2. `infra/database/seed_reference_data.sql`
@@ -23,10 +24,12 @@ This repo is prepared for release-based deployment on a Debian Google Compute En
    - grant privileges on that database only
 5. Copy `infra/config/shared-config.example.php` to `/var/www/bugcatcher/shared/config.php` and replace placeholders
    - set `CHECKLIST_BOT_SHARED_SECRET` before exposing the bot ingest endpoint
+   - set `OPENCLAW_INTERNAL_SHARED_SECRET`, `OPENCLAW_ENCRYPTION_KEY`, and `OPENCLAW_TEMP_UPLOAD_DIR` before enabling OpenClaw
 6. Import the SQL files listed above
 7. Enable the nginx site and test configuration
 8. Run `sudo bash infra/deploy/deploy_release.sh <git-tag-or-commit>`
 9. Issue TLS with `sudo certbot --nginx -d your-domain -d www.your-domain`
+10. Deploy and enable the OpenClaw Python service from `services/openclaw/`
 
 ## Rollback
 

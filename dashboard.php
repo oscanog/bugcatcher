@@ -60,7 +60,7 @@ $isQATester = ($myOrgRole && $myOrgRole['role'] === 'QA Tester');
 $isSeniorQA = ($myOrgRole && $myOrgRole['role'] === 'Senior QA');
 $isQALead = ($myOrgRole && $myOrgRole['role'] === 'QA Lead');
 
-$isSystemAdmin = ($current_role === 'admin'); // from db.php (admin/user only)
+$isSystemAdmin = bugcatcher_is_system_admin_role($current_role);
 
 // One visibility mode for the whole page
 $scope = 'regular'; // regular | junior | senior | pm | admin | owner | qa | senior_qa | qa_lead
@@ -1116,6 +1116,10 @@ function issues_url_clear($status)
       <a href="organization.php">Organization</a>
       <a href="project-passed-by-melvin/project_list.php">Projects</a>
       <a href="checklist-passed-by-melvin/checklist_list.php">Checklist</a>
+      <a href="discord-link.php">Discord Link</a>
+      <?php if (bugcatcher_is_super_admin_role($current_role)): ?>
+        <a href="super-admin/openclaw.php">Super Admin</a>
+      <?php endif; ?>
       <a href="register-passed-by-maglaque/logout.php" style="color:#ff7b72;">Logout</a>
     </nav>
     <div style="margin-top:auto; color:#8b949e; font-size:12px;">
@@ -1155,7 +1159,7 @@ function issues_url_clear($status)
       <div class="gh-toolbar">
         <div class="gh-filters">
 
-          <?php if ($current_role === 'admin'): ?>
+          <?php if (bugcatcher_is_system_admin_role($current_role)): ?>
             <!-- Author dropdown -->
             <div class="gh-dd" data-dd="author">
               <button type="button" class="gh-dd-btn">
@@ -1680,7 +1684,7 @@ function issues_url_clear($status)
       });
     }
 
-    <?php if ($current_role === 'admin'): ?>
+    <?php if (bugcatcher_is_system_admin_role($current_role)): ?>
       setupSearch("author");
     <?php endif; ?>
     setupSearch("labels");

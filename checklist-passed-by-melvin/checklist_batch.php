@@ -3,6 +3,7 @@
 require_once dirname(__DIR__) . '/app/auth_org.php';
 require_once dirname(__DIR__) . '/app/checklist_lib.php';
 require_once dirname(__DIR__) . '/app/checklist_shell.php';
+require_once dirname(__DIR__) . '/app/openclaw_lib.php';
 
 $context = bugcatcher_require_org_context($conn);
 $batchId = bugcatcher_get_int('id');
@@ -159,6 +160,8 @@ $batchForm = [
 
 $items = $batch ? bugcatcher_checklist_fetch_items_for_batch($conn, $batch['id']) : [];
 $nextSequence = $batch ? bugcatcher_checklist_next_sequence($conn, $batch['id']) : 1;
+$batchAttachments = $batch ? bugcatcher_openclaw_fetch_batch_attachments($conn, $batch['id']) : [];
+$sourceReference = $batch ? bugcatcher_openclaw_parse_source_reference($batch['source_reference'] ?? '') : [];
 
 bugcatcher_shell_start($batch ? 'Checklist Batch' : 'New Checklist Batch', 'checklist', $context, [
     ['href' => '/checklist-passed-by-melvin/checklist_list.php', 'label' => 'Back to Checklist', 'variant' => 'secondary'],
@@ -351,6 +354,37 @@ bugcatcher_shell_start($batch ? 'Checklist Batch' : 'New Checklist Batch', 'chec
         <?php else: ?>
             <p class="bc-meta">No batch notes or external attachment references were recorded.</p>
         <?php endif; ?>
+    </div>
+
+    <div class="bc-grid cols-2">
+        <div class="bc-card">
+            <h2>Source Metadata</h2>
+            <div class="bc-kv">
+                <div class="bc-kv-row"><strong>Created by</strong><span><?= bugcatcher_html($batch['created_by_name'] ?: 'Unknown') ?></span></div>
+                <div class="bc-kv-row"><strong>Source</strong><span><?= bugcatcher_html($batch['source_type'] . '/' . $batch['source_channel']) ?></span></div>
+                <div class="bc-kv-row"><strong>Reference</strong><span><?= bugcatcher_html(($sourceReference['message_id'] ?? $sourceReference['raw'] ?? $batch['source_reference'] ?? '') ?: 'None') ?></span></div>
+            </div>
+        </div>
+        <div class="bc-card">
+            <h2>Batch Attachments</h2>
+            <?php if (!$batchAttachments): ?>
+                <p class="bc-meta">No source images were stored for this batch.</p>
+            <?php else: ?>
+                <div class="bc-media-grid">
+                    <?php foreach ($batchAttachments as $attachment): ?>
+                        <div class="bc-media-card">
+                            <strong><?= bugcatcher_html($attachment['original_name']) ?></strong>
+                            <div class="bc-meta"><?= bugcatcher_html($attachment['mime_type']) ?></div>
+                            <div class="bc-meta">Uploaded by <?= bugcatcher_html($attachment['uploaded_by_name'] ?: 'Bot/System') ?></div>
+                            <?php if (strpos((string) $attachment['mime_type'], 'image/') === 0): ?>
+                                <img src="/<?= bugcatcher_html($attachment['file_path']) ?>" alt="<?= bugcatcher_html($attachment['original_name']) ?>">
+                            <?php endif; ?>
+                            <a href="/<?= bugcatcher_html($attachment['file_path']) ?>" target="_blank" rel="noopener">Open attachment</a>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
+            <?php endif; ?>
+        </div>
     </div>
 <?php endif; ?>
 

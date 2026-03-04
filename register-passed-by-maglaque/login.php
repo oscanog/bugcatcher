@@ -28,7 +28,7 @@ if (isset($_POST['login'])) {
       $row = $res->fetch_assoc();
 
       if (password_verify($pass, $row['password'])) {
-        $role = ($row['role'] === 'admin') ? 'admin' : 'user';
+        $role = bugcatcher_normalize_system_role($row['role'] ?? 'user');
 
         $_SESSION['id'] = (int) $row['id'];
         $_SESSION['username'] = $row['username'];
@@ -73,11 +73,7 @@ if (isset($_POST['login'])) {
           }
         }
 
-        if ($role === 'admin') {
-          header("Location: ../dashboard.php");
-        } else {
-          header("Location: ../dashboard.php");
-        }
+        header("Location: ../dashboard.php");
         exit();
       }
     }

@@ -19,4 +19,4 @@ if (!isset($_SESSION['id'])) {
 
 $current_user_id = (int) $_SESSION['id'];
 $current_username = $_SESSION['username'] ?? 'User';
-$current_role = ($_SESSION['role'] ?? 'user') === 'admin' ? 'admin' : 'user';
+$current_role = bugcatcher_normalize_system_role($_SESSION['role'] ?? 'user');

@@ -13,4 +13,8 @@ return [
     'CHECKLIST_UPLOADS_DIR' => '/var/www/bugcatcher/shared/uploads/checklists',
     'CHECKLIST_UPLOADS_URL' => 'uploads/checklists',
     'CHECKLIST_BOT_SHARED_SECRET' => 'replace-with-a-long-random-secret',
+    'OPENCLAW_INTERNAL_SHARED_SECRET' => 'replace-with-a-second-long-random-secret',
+    'OPENCLAW_ENCRYPTION_KEY' => 'replace-with-a-32-byte-secret',
+    'OPENCLAW_TEMP_UPLOAD_DIR' => '/var/www/bugcatcher/shared/uploads/openclaw-tmp',
+    'OPENCLAW_LOG_LEVEL' => 'info',
 ];

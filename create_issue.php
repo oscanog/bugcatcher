@@ -47,7 +47,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
     $title = $_POST['title'] ?? '';
     $description = $_POST['description'] ?? '';
-    $author_id = ($current_role === 'admin')
+    $author_id = bugcatcher_is_system_admin_role($current_role)
         ? (int) ($_POST['author'] ?? 0)
         : $current_user_id;
 
@@ -153,7 +153,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
 // GET request: show form data
 $users = null;
-if ($current_role === 'admin') {
+if (bugcatcher_is_system_admin_role($current_role)) {
     $users = $conn->query("SELECT id, username FROM users ORDER BY username ASC");
 }
 $labels = $conn->query("SELECT id, name, color FROM labels ORDER BY name ASC");
@@ -175,12 +175,16 @@ $labels = $conn->query("SELECT id, name, color FROM labels ORDER BY name ASC");
         <div class="logo">BugCatcher</div>
         <nav class="nav">
             <a href="dashboard.php">Dashboard</a>
-            <?php if ($current_role == 'admin'): ?>
+            <?php if (bugcatcher_is_system_admin_role($current_role)): ?>
                 <a href="#">Manage Users</a>
             <?php endif; ?>
             <a href="organization.php">Organization</a>
             <a href="project-passed-by-melvin/project_list.php">Projects</a>
             <a href="checklist-passed-by-melvin/checklist_list.php">Checklist</a>
+            <a href="discord-link.php">Discord Link</a>
+            <?php if (bugcatcher_is_super_admin_role($current_role)): ?>
+                <a href="super-admin/openclaw.php">Super Admin</a>
+            <?php endif; ?>
             <a href="register-passed-by-maglaque/logout.php" style="color:#ff7b72;">Logout</a>
         </nav>
         <div style="margin-top:auto; color:#8b949e; font-size:12px;">
@@ -229,7 +233,7 @@ $labels = $conn->query("SELECT id, name, color FROM labels ORDER BY name ASC");
 
                     <br><br>
 
-                    <?php if ($current_role === 'admin'): ?>
+                    <?php if (bugcatcher_is_system_admin_role($current_role)): ?>
                         <label style="display:block; font-weight:600; margin-bottom:6px;">Author</label>
                         <select name="author" required style="padding:10px; border:1px solid #d0d7de; border-radius:6px;">
                             <?php while ($u = $users->fetch_assoc()): ?>

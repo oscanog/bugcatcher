@@ -281,6 +281,11 @@ button.bc-btn {
   color: var(--warning);
 }
 
+.bc-alert.info {
+  background: rgba(9, 105, 218, 0.1);
+  color: var(--accent);
+}
+
 .bc-table-wrap {
   overflow: auto;
 }
@@ -318,6 +323,131 @@ button.bc-btn {
   display: block;
   font-size: 1.4rem;
   margin-top: 0.35rem;
+}
+
+.bc-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.bc-tab {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  padding: 0.65rem 1rem;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.bc-tab.active {
+  border-color: var(--accent);
+  background: rgba(9, 105, 218, 0.12);
+  color: var(--accent);
+}
+
+.bc-code {
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--surface-alt);
+  padding: 0.2rem 0.45rem;
+  font-family: Consolas, "Courier New", monospace;
+}
+
+.bc-docs {
+  display: grid;
+  grid-template-columns: minmax(220px, 280px) minmax(0, 1fr);
+  gap: 1rem;
+}
+
+.bc-docs-nav {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.bc-docs-nav a {
+  display: block;
+  text-decoration: none;
+  color: var(--text);
+  border: 1px solid var(--border);
+  background: var(--surface-alt);
+  border-radius: 12px;
+  padding: 0.8rem 0.9rem;
+}
+
+.bc-docs-nav a.active {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: rgba(9, 105, 218, 0.08);
+}
+
+.bc-markdown {
+  line-height: 1.65;
+}
+
+.bc-markdown h1,
+.bc-markdown h2,
+.bc-markdown h3,
+.bc-markdown h4 {
+  margin-top: 0;
+}
+
+.bc-markdown pre {
+  overflow: auto;
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 1rem;
+}
+
+.bc-markdown code {
+  font-family: Consolas, "Courier New", monospace;
+}
+
+.bc-kv {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.bc-kv-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.75rem 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.bc-kv-row strong {
+  white-space: nowrap;
+}
+
+.bc-media-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1rem;
+}
+
+.bc-media-card {
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 1rem;
+  background: var(--surface-alt);
+}
+
+.bc-media-card img {
+  max-width: 100%;
+  border-radius: 10px;
+  display: block;
+}
+
+@media (max-width: 960px) {
+  .bc-docs {
+    grid-template-columns: 1fr;
+  }
 }
 
 .bc-badge {
