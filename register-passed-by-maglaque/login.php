@@ -10,6 +10,7 @@ if (isset($_SESSION['id'])) {
 }
 
 $error = "";
+$info = (($_GET['reason'] ?? '') === 'expired') ? "Your session expired. Please sign in again." : "";
 
 if (isset($_POST['login'])) {
   $email = trim($_POST['email'] ?? '');
@@ -32,6 +33,7 @@ if (isset($_POST['login'])) {
         $_SESSION['id'] = (int) $row['id'];
         $_SESSION['username'] = $row['username'];
         $_SESSION['role'] = $role;
+        bugcatcher_mark_known_user_browser();
 
         // Restore last active org into session (survives logout)
         $lastOrgId = (int) ($row['last_active_org_id'] ?? 0);
@@ -102,6 +104,12 @@ if (isset($_POST['login'])) {
       <header>Login</header>
       <hr>
       <p class="auth-subtitle">Sign in to continue to BugCatcher</p>
+
+      <?php if ($info !== ""): ?>
+        <div class='message'>
+          <p><?= htmlspecialchars($info) ?></p>
+        </div><br>
+      <?php endif; ?>
 
       <?php if ($error !== ""): ?>
         <div class='message'>

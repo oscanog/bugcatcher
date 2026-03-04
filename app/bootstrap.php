@@ -1,6 +1,7 @@
 <?php
 
 const BUGCATCHER_SHARED_CONFIG_PATH = '/var/www/bugcatcher/shared/config.php';
+const BUGCATCHER_KNOWN_USER_COOKIE = 'bugcatcher_known_user';
 
 function bugcatcher_default_config(): array
 {
@@ -92,20 +93,45 @@ function bugcatcher_is_https(): bool
     return stripos($baseUrl, 'https://') === 0;
 }
 
+function bugcatcher_cookie_options(int $expires = 0): array
+{
+    return [
+        'expires' => $expires,
+        'path' => '/',
+        'domain' => '',
+        'secure' => bugcatcher_is_https(),
+        'httponly' => true,
+        'samesite' => 'Lax',
+    ];
+}
+
+function bugcatcher_mark_known_user_browser(): void
+{
+    setcookie(BUGCATCHER_KNOWN_USER_COOKIE, '1', bugcatcher_cookie_options(time() + (60 * 60 * 24 * 30)));
+    $_COOKIE[BUGCATCHER_KNOWN_USER_COOKIE] = '1';
+}
+
+function bugcatcher_clear_known_user_browser(): void
+{
+    setcookie(BUGCATCHER_KNOWN_USER_COOKIE, '', bugcatcher_cookie_options(time() - 3600));
+    unset($_COOKIE[BUGCATCHER_KNOWN_USER_COOKIE]);
+}
+
+function bugcatcher_is_known_user_browser(): bool
+{
+    return ($_COOKIE[BUGCATCHER_KNOWN_USER_COOKIE] ?? '') === '1';
+}
+
 function bugcatcher_start_session(): void
 {
     if (session_status() === PHP_SESSION_ACTIVE) {
         return;
     }
 
-    session_set_cookie_params([
-        'lifetime' => 0,
-        'path' => '/',
-        'domain' => '',
-        'secure' => bugcatcher_is_https(),
-        'httponly' => true,
-        'samesite' => 'Lax',
-    ]);
+    $cookieParams = bugcatcher_cookie_options();
+    $cookieParams['lifetime'] = 0;
+    unset($cookieParams['expires']);
+    session_set_cookie_params($cookieParams);
 
     session_start();
 }

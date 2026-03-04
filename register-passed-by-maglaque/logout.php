@@ -2,6 +2,7 @@
 require_once dirname(__DIR__) . '/app/bootstrap.php';
 
 bugcatcher_start_session();
+bugcatcher_clear_known_user_browser();
 $_SESSION = [];
 
 if (ini_get('session.use_cookies')) {

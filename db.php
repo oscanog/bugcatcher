@@ -10,7 +10,10 @@ try {
 }
 
 if (!isset($_SESSION['id'])) {
-    header("Location: register-passed-by-maglaque/login.php");
+    $loginLocation = bugcatcher_is_known_user_browser()
+        ? 'register-passed-by-maglaque/login.php?reason=expired'
+        : 'register-passed-by-maglaque/login.php';
+    header("Location: {$loginLocation}");
     exit();
 }
 

@@ -3,9 +3,11 @@ require_once __DIR__ . '/app/bootstrap.php';
 
 bugcatcher_start_session();
 
-// If already logged in, go to dashboard
-if (isset($_SESSION['id'])) {
-    header("Location: dashboard.php");
+$isLoggedIn = isset($_SESSION['id']);
+$isKnownBrowser = bugcatcher_is_known_user_browser();
+
+if (!$isLoggedIn && $isKnownBrowser) {
+    header("Location: register-passed-by-maglaque/login.php?reason=expired");
     exit();
 }
 ?>
@@ -1205,7 +1207,9 @@ if (isset($_SESSION['id'])) {
         </div>
         <div class="nav-links">
             <a href="register-passed-by-maglaque/login.php">Login</a>
-            <a href="register-passed-by-maglaque/signup.php">Sign Up</a>
+            <?php if (!$isLoggedIn): ?>
+                <a href="register-passed-by-maglaque/signup.php">Sign Up</a>
+            <?php endif; ?>
         </div>
     </nav>
     
