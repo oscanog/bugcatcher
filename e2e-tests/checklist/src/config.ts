@@ -15,7 +15,7 @@ function isBlank(value: unknown): boolean {
   return value === undefined || value === null || String(value).trim() === "";
 }
 
-const localFallbacks: Record<string, string> = {
+const localFallbacks = {
   E2E_BASE_URL: "http://localhost",
   E2E_EMAIL: "e2e.local@bugcatcher.test",
   E2E_PASSWORD: "E2E!Pass123",
@@ -23,15 +23,27 @@ const localFallbacks: Record<string, string> = {
   E2E_PROJECT_ID: "1",
   E2E_ASSIGNED_QA_LEAD_ID: "7",
   E2E_ASSIGNED_USER_ID: "9",
-};
+} as const;
 
 const effectiveEnv = { ...process.env } as Record<string, string | undefined>;
-if (envName === "local") {
-  for (const [key, fallback] of Object.entries(localFallbacks)) {
-    if (isBlank(effectiveEnv[key])) {
-      effectiveEnv[key] = fallback;
-    }
+function resolveEnvValue(
+  key: keyof typeof localFallbacks,
+  options?: { optional?: boolean }
+): string | undefined {
+  const current = effectiveEnv[key];
+  if (!isBlank(current)) {
+    return String(current).trim();
   }
+
+  if (envName === "local") {
+    return localFallbacks[key];
+  }
+
+  if (options?.optional) {
+    return undefined;
+  }
+
+  return "";
 }
 
 const requiredTrimmedString = z.preprocess((value) => {
@@ -69,7 +81,17 @@ const schema = z.object({
   E2E_ASSIGNED_USER_ID: optionalPositiveInt,
 });
 
-const parsed = schema.safeParse(effectiveEnv);
+const envForValidation = {
+  E2E_BASE_URL: resolveEnvValue("E2E_BASE_URL"),
+  E2E_EMAIL: resolveEnvValue("E2E_EMAIL"),
+  E2E_PASSWORD: resolveEnvValue("E2E_PASSWORD"),
+  E2E_ORG_ID: resolveEnvValue("E2E_ORG_ID"),
+  E2E_PROJECT_ID: resolveEnvValue("E2E_PROJECT_ID"),
+  E2E_ASSIGNED_QA_LEAD_ID: resolveEnvValue("E2E_ASSIGNED_QA_LEAD_ID", { optional: true }),
+  E2E_ASSIGNED_USER_ID: resolveEnvValue("E2E_ASSIGNED_USER_ID", { optional: true }),
+};
+
+const parsed = schema.safeParse(envForValidation);
 if (!parsed.success) {
   const reasons = parsed.error.issues.map((issue) => {
     const field = issue.path.join(".") || "env";
