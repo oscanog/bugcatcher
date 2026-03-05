@@ -11,31 +11,72 @@ if (fs.existsSync(profilePath)) {
   dotenv.config({ path: profilePath, override: false });
 }
 
+function isBlank(value: unknown): boolean {
+  return value === undefined || value === null || String(value).trim() === "";
+}
+
+const localFallbacks: Record<string, string> = {
+  E2E_BASE_URL: "http://localhost",
+  E2E_EMAIL: "e2e.local@bugcatcher.test",
+  E2E_PASSWORD: "E2E!Pass123",
+  E2E_ORG_ID: "4",
+  E2E_PROJECT_ID: "1",
+  E2E_ASSIGNED_QA_LEAD_ID: "7",
+  E2E_ASSIGNED_USER_ID: "9",
+};
+
+const effectiveEnv = { ...process.env } as Record<string, string | undefined>;
+if (envName === "local") {
+  for (const [key, fallback] of Object.entries(localFallbacks)) {
+    if (isBlank(effectiveEnv[key])) {
+      effectiveEnv[key] = fallback;
+    }
+  }
+}
+
+const requiredTrimmedString = z.preprocess((value) => {
+  if (isBlank(value)) {
+    return "";
+  }
+  return String(value).trim();
+}, z.string().min(1));
+
+const requiredPositiveInt = z.preprocess((value) => {
+  if (isBlank(value)) {
+    return NaN;
+  }
+  return Number(String(value).trim());
+}, z.number().int().positive());
+
 const optionalPositiveInt = z.preprocess((value) => {
-  if (value === undefined || value === null || value === "") {
+  if (isBlank(value)) {
     return undefined;
   }
-  return value;
-}, z.coerce.number().int().positive().optional());
+  const numeric = Number(String(value).trim());
+  if (!Number.isFinite(numeric) || numeric <= 0) {
+    return undefined;
+  }
+  return numeric;
+}, z.number().int().positive().optional());
 
 const schema = z.object({
-  E2E_BASE_URL: z.string().url(),
-  E2E_EMAIL: z.string().min(1),
-  E2E_PASSWORD: z.string().min(1),
-  E2E_ORG_ID: z.coerce.number().int().positive(),
-  E2E_PROJECT_ID: z.coerce.number().int().positive(),
+  E2E_BASE_URL: z.preprocess((value) => String(value ?? "").trim(), z.string().url()),
+  E2E_EMAIL: requiredTrimmedString,
+  E2E_PASSWORD: requiredTrimmedString,
+  E2E_ORG_ID: requiredPositiveInt,
+  E2E_PROJECT_ID: requiredPositiveInt,
   E2E_ASSIGNED_QA_LEAD_ID: optionalPositiveInt,
   E2E_ASSIGNED_USER_ID: optionalPositiveInt,
 });
 
-const parsed = schema.safeParse(process.env);
+const parsed = schema.safeParse(effectiveEnv);
 if (!parsed.success) {
   const reasons = parsed.error.issues.map((issue) => {
     const field = issue.path.join(".") || "env";
     return `${field}: ${issue.message}`;
   });
   throw new Error(
-    `Invalid E2E configuration for E2E_ENV=${envName}\n${reasons.join("\n")}`
+    `Invalid E2E configuration for E2E_ENV=${envName} (${profilePath})\n${reasons.join("\n")}`
   );
 }
 
