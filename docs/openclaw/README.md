@@ -15,6 +15,7 @@ OpenClaw is BugCatcher's Discord-driven checklist intake assistant.
 ## Documentation Map
 
 - [Architecture](architecture.md)
+- [Self setup runbook](self-setup-runbook.md)
 - [Discord setup](discord-setup.md)
 - [Provider setup](provider-setup.md)
 - [Server setup](server-setup.md)

@@ -7,6 +7,7 @@ const BUGCATCHER_OPENCLAW_DOCS_DIR = __DIR__ . '/../docs/openclaw';
 const BUGCATCHER_OPENCLAW_DOC_ORDER = [
     'README.md',
     'architecture.md',
+    'self-setup-runbook.md',
     'discord-setup.md',
     'provider-setup.md',
     'server-setup.md',
@@ -1467,6 +1468,7 @@ function bugcatcher_openclaw_doc_title(string $fileName): string
     $titles = [
         'README.md' => 'Overview',
         'architecture.md' => 'Architecture',
+        'self-setup-runbook.md' => 'Self Setup Runbook',
         'discord-setup.md' => 'Discord Setup',
         'provider-setup.md' => 'Provider Setup',
         'server-setup.md' => 'Server Setup',
