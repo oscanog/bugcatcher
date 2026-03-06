@@ -15,6 +15,11 @@ Optional demo data:
 
 Legacy SQL artifacts that are not part of the production bootstrap live under `infra/database/legacy/`.
 
+Local development one-shot import:
+
+1. Import `infra/database/local_dev_full.sql`.
+2. Log in with `superadmin@local.dev` and password `DevPass123!`.
+
 New checklist/project foundations are included in `schema.sql`:
 
 - `projects`
