@@ -5,7 +5,7 @@ bugcatcher_start_session();
 include "connection.php";
 
 if (isset($_SESSION['id'])) {
-  header("Location: ../dashboard.php");
+  header("Location: /zen/dashboard.php");
   exit();
 }
 
@@ -125,3 +125,4 @@ if (isset($_POST['register'])) {
 </body>
 
 </html>
+

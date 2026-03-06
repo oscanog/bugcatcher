@@ -17,8 +17,8 @@ $projects = bugcatcher_checklist_fetch_projects($conn, $context['org_id'], true)
 $batches = bugcatcher_checklist_fetch_batches($conn, $context['org_id'], $projectId, $status, $search);
 
 bugcatcher_shell_start('Checklist', 'checklist', $context, [
-    ['href' => '/checklist-passed-by-melvin/checklist_batch.php', 'label' => 'New Batch'],
-    ['href' => '/project-passed-by-melvin/project_list.php', 'label' => 'Projects', 'variant' => 'secondary'],
+    ['href' => '/melvin/checklist_batch.php', 'label' => 'New Batch'],
+    ['href' => '/melvin/project_list.php', 'label' => 'Projects', 'variant' => 'secondary'],
 ]);
 ?>
 
@@ -73,7 +73,7 @@ bugcatcher_shell_start('Checklist', 'checklist', $context, [
                             <?php endif; ?>
                         </div>
                     </div>
-                    <a href="/checklist-passed-by-melvin/checklist_batch.php?id=<?= (int) $batch['id'] ?>">Open Batch</a>
+                    <a href="/melvin/checklist_batch.php?id=<?= (int) $batch['id'] ?>">Open Batch</a>
                 </div>
                 <div class="bc-inline">
                     <span class="bc-badge"><?= bugcatcher_html($batch['status']) ?></span>
@@ -92,3 +92,4 @@ bugcatcher_shell_start('Checklist', 'checklist', $context, [
 </div>
 
 <?php bugcatcher_shell_end(); ?>
+

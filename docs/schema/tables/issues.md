@@ -54,8 +54,8 @@ Stores the main issue record plus the current workflow assignees and milestone t
 
 ## How the application uses it
 
-- `create_issue.php` inserts the base issue row with `title`, `description`, `author_id`, and `org_id`.
-- `dashboard.php` filters issues by `status`, `org_id`, author, label, and assignee columns depending on the current member role.
+- `/zen/create_issue.php` inserts the base issue row with `title`, `description`, `author_id`, and `org_id`.
+- `/zen/dashboard.php` filters issues by `status`, `org_id`, author, label, and assignee columns depending on the current member role.
 - The workflow uses the assignee columns to represent the current holder of each stage rather than storing a separate assignment history.
 - The current observed `assign_status` set is:
   - `unassigned`

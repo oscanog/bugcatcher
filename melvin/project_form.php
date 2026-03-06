@@ -71,14 +71,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt->close();
 
         if ($ok) {
-            header('Location: /project-passed-by-melvin/project_detail.php?id=' . $newId);
+            header('Location: /melvin/project_detail.php?id=' . $newId);
             exit;
         }
     }
 }
 
 bugcatcher_shell_start($project ? 'Edit Project' : 'New Project', 'projects', $context, [
-    ['href' => '/project-passed-by-melvin/project_list.php', 'label' => 'Back to Projects', 'variant' => 'secondary'],
+    ['href' => '/melvin/project_list.php', 'label' => 'Back to Projects', 'variant' => 'secondary'],
 ]);
 ?>
 

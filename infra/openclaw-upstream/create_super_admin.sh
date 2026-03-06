@@ -3,7 +3,7 @@ set -euo pipefail
 
 BUGCATCHER_ROOT="${BUGCATCHER_ROOT:-/var/www/bugcatcher}"
 CONFIG_PATH="${BUGCATCHER_CONFIG_PATH:-$BUGCATCHER_ROOT/config/local.php}"
-LOGIN_PATH="${LOGIN_PATH:-/register-passed-by-maglaque/login.php}"
+LOGIN_PATH="${LOGIN_PATH:-/rainier/login.php}"
 
 if [[ ! -f "$CONFIG_PATH" ]]; then
     echo "Config file not found: $CONFIG_PATH" >&2
@@ -220,8 +220,8 @@ curl -ksS \
     --data-urlencode "login=Login" \
     "$LOGIN_URL" >/dev/null
 
-if grep -qi '^Location: ../dashboard.php' "$HEADERS_FILE"; then
-    echo "Web login verification: OK (redirected to ../dashboard.php)"
+if grep -qi '^Location: /zen/dashboard.php' "$HEADERS_FILE"; then
+    echo "Web login verification: OK (redirected to /zen/dashboard.php)"
 else
     echo "Web login verification failed." >&2
     echo "Response headers:" >&2

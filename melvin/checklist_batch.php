@@ -86,7 +86,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt->execute();
                 $batchId = (int) $conn->insert_id;
                 $stmt->close();
-                header('Location: /checklist-passed-by-melvin/checklist_batch.php?id=' . $batchId);
+                header('Location: /melvin/checklist_batch.php?id=' . $batchId);
                 exit;
             }
             $batch = bugcatcher_checklist_fetch_batch($conn, $context['org_id'], $batchId);
@@ -164,7 +164,7 @@ $batchAttachments = $batch ? bugcatcher_openclaw_fetch_batch_attachments($conn, 
 $sourceReference = $batch ? bugcatcher_openclaw_parse_source_reference($batch['source_reference'] ?? '') : [];
 
 bugcatcher_shell_start($batch ? 'Checklist Batch' : 'New Checklist Batch', 'checklist', $context, [
-    ['href' => '/checklist-passed-by-melvin/checklist_list.php', 'label' => 'Back to Checklist', 'variant' => 'secondary'],
+    ['href' => '/melvin/checklist_list.php', 'label' => 'Back to Checklist', 'variant' => 'secondary'],
 ]);
 ?>
 
@@ -321,7 +321,7 @@ bugcatcher_shell_start($batch ? 'Checklist Batch' : 'New Checklist Batch', 'chec
                     <tr>
                         <td><?= (int) $item['sequence_no'] ?></td>
                         <td>
-                            <a href="/checklist-passed-by-melvin/checklist_item.php?id=<?= (int) $item['id'] ?>">
+                            <a href="/melvin/checklist_item.php?id=<?= (int) $item['id'] ?>">
                                 <?= bugcatcher_html($item['full_title']) ?>
                             </a>
                         </td>
@@ -334,7 +334,7 @@ bugcatcher_shell_start($batch ? 'Checklist Batch' : 'New Checklist Batch', 'chec
                         <td><?= bugcatcher_html($item['assigned_to_name'] ?: 'Unassigned') ?></td>
                         <td>
                             <?php if (!empty($item['issue_id'])): ?>
-                                <a href="/dashboard.php?page=dashboard&status=open">#<?= (int) $item['issue_id'] ?></a>
+                                <a href="/zen/dashboard.php?page=dashboard&status=open">#<?= (int) $item['issue_id'] ?></a>
                             <?php else: ?>
                                 <span class="bc-meta">None</span>
                             <?php endif; ?>
@@ -389,3 +389,5 @@ bugcatcher_shell_start($batch ? 'Checklist Batch' : 'New Checklist Batch', 'chec
 <?php endif; ?>
 
 <?php bugcatcher_shell_end(); ?>
+
+

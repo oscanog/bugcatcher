@@ -166,7 +166,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 bugcatcher_shell_start('Checklist Item', 'checklist', $context, [
-    ['href' => '/checklist-passed-by-melvin/checklist_batch.php?id=' . (int) $item['batch_id'], 'label' => 'Back to Batch', 'variant' => 'secondary'],
+    ['href' => '/melvin/checklist_batch.php?id=' . (int) $item['batch_id'], 'label' => 'Back to Batch', 'variant' => 'secondary'],
 ]);
 ?>
 
@@ -266,7 +266,7 @@ bugcatcher_shell_start('Checklist Item', 'checklist', $context, [
             <?php if ((int) $item['issue_id'] > 0): ?>
                 <div class="bc-alert warn">
                     Linked issue #<?= (int) $item['issue_id'] ?> exists. It remains open even if this checklist item later passes.
-                    <a href="/dashboard.php?page=dashboard&status=open">Open dashboard</a>
+                    <a href="/zen/dashboard.php?page=dashboard&status=open">Open dashboard</a>
                 </div>
             <?php endif; ?>
         </div>
@@ -323,3 +323,5 @@ bugcatcher_shell_start('Checklist Item', 'checklist', $context, [
 </div>
 
 <?php bugcatcher_shell_end(); ?>
+
+

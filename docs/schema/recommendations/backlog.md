@@ -20,8 +20,8 @@ Affected tables and queries:
 - `issues.assigned_senior_qa_id`
 - `issues.assigned_qa_lead_id`
 - `issues.pm_id`
-- login restoration in `register-passed-by-maglaque/login.php`
-- assignment and workflow queries in `dashboard.php`
+- login restoration in `rainier/login.php`
+- assignment and workflow queries in `/zen/dashboard.php`
 
 Suggested migration direction:
 - Add `users.last_active_org_id -> organizations.id ON DELETE SET NULL`
@@ -45,7 +45,7 @@ Affected tables and queries:
 - `issues.assigned_senior_qa_id`
 - `issues.assigned_qa_lead_id`
 - `issues.pm_id`
-- role-scoped issue queries in `dashboard.php`
+- role-scoped issue queries in `/zen/dashboard.php`
 
 Suggested migration direction:
 - Add indexes for `assigned_junior_id`
@@ -80,7 +80,7 @@ Unexpected strings can be inserted manually or by future code changes, which wou
 
 Affected tables and queries:
 - `issues.assign_status`
-- workflow transitions in `dashboard.php`
+- workflow transitions in `/zen/dashboard.php`
 
 Suggested migration direction:
 - Constrain the column to the current observed set:
@@ -107,7 +107,7 @@ The model duplicates state and increases the risk of inconsistent rows.
 Affected tables and queries:
 - `issues.status`
 - `issues.assign_status`
-- close flow in `dashboard.php`
+- close flow in `/zen/dashboard.php`
 
 Suggested migration direction:
 - Keep open or closed in `status`
@@ -124,8 +124,8 @@ Duplicate label names would make filtering and maintenance ambiguous.
 
 Affected tables and queries:
 - `labels`
-- label selection in `create_issue.php`
-- label filtering in `dashboard.php`
+- label selection in `/zen/create_issue.php`
+- label filtering in `/zen/dashboard.php`
 - seed data in `infra/database/seed_reference_data.sql`
 
 Suggested migration direction:
@@ -142,7 +142,7 @@ Concurrent inserts or manual SQL changes can bypass the current application-leve
 
 Affected tables and queries:
 - `organizations.name`
-- organization creation flow in `organization.php`
+- organization creation flow in `/zen/organization.php`
 
 Suggested migration direction:
 - Add a unique constraint on `organizations.name`
@@ -160,7 +160,7 @@ Every new role or step makes the table wider, and the current shape cannot keep 
 
 Affected tables and queries:
 - `issues`
-- nearly all workflow logic in `dashboard.php`
+- nearly all workflow logic in `/zen/dashboard.php`
 
 Suggested migration direction:
 - Introduce a normalized assignment or workflow-event model
@@ -177,7 +177,7 @@ Changing role names or adding roles requires a schema migration and coordinated 
 
 Affected tables and queries:
 - `org_members.role`
-- permission checks in `dashboard.php` and `organization.php`
+- permission checks in `/zen/dashboard.php` and `/zen/organization.php`
 
 Suggested migration direction:
 - Keep the enum if the role list is stable

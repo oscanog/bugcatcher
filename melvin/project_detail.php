@@ -14,8 +14,8 @@ if (!$project) {
 $batches = bugcatcher_checklist_fetch_batches($conn, $context['org_id'], $projectId);
 
 bugcatcher_shell_start('Project Detail', 'projects', $context, [
-    ['href' => '/checklist-passed-by-melvin/checklist_list.php?project_id=' . $projectId, 'label' => 'Open Checklist'],
-    ['href' => '/project-passed-by-melvin/project_form.php?id=' . $projectId, 'label' => 'Edit', 'variant' => 'secondary'],
+    ['href' => '/melvin/checklist_list.php?project_id=' . $projectId, 'label' => 'Open Checklist'],
+    ['href' => '/melvin/project_form.php?id=' . $projectId, 'label' => 'Edit', 'variant' => 'secondary'],
 ]);
 ?>
 
@@ -50,7 +50,7 @@ bugcatcher_shell_start('Project Detail', 'projects', $context, [
             <h2>Checklist batches</h2>
             <p class="bc-meta">Recent checklist runs under this project.</p>
         </div>
-        <a class="bc-btn" href="/checklist-passed-by-melvin/checklist_batch.php?project_id=<?= $projectId ?>">New Batch</a>
+        <a class="bc-btn" href="/melvin/checklist_batch.php?project_id=<?= $projectId ?>">New Batch</a>
     </div>
     <div class="bc-list">
         <?php if (!$batches): ?>
@@ -68,7 +68,7 @@ bugcatcher_shell_start('Project Detail', 'projects', $context, [
                                 <?php endif; ?>
                             </div>
                         </div>
-                        <a href="/checklist-passed-by-melvin/checklist_batch.php?id=<?= (int) $batch['id'] ?>">Open</a>
+                        <a href="/melvin/checklist_batch.php?id=<?= (int) $batch['id'] ?>">Open</a>
                     </div>
                     <div class="bc-inline">
                         <span class="bc-badge"><?= bugcatcher_html($batch['status']) ?></span>
@@ -82,3 +82,4 @@ bugcatcher_shell_start('Project Detail', 'projects', $context, [
 </div>
 
 <?php bugcatcher_shell_end(); ?>
+

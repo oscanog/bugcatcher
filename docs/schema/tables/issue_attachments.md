@@ -27,9 +27,9 @@ Stores uploaded file metadata for issue attachments.
 
 ## How the application uses it
 
-- `create_issue.php` uploads files into the configured issues upload directory and stores metadata here.
+- `/zen/create_issue.php` uploads files into the configured issues upload directory and stores metadata here.
 - Stored paths are generated through the upload helpers in `app/bootstrap.php`.
-- `dashboard.php` reads attachment metadata for display and removes file records before deleting an issue.
+- `/zen/dashboard.php` reads attachment metadata for display and removes file records before deleting an issue.
 - Deleting the parent issue cascades and removes attachment rows.
 
 ## Known limitations

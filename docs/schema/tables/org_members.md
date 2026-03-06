@@ -27,7 +27,7 @@ Bridge table that records which users belong to which organizations and what org
 ## How the application uses it
 
 - Membership is checked before issue creation, issue assignment, organization administration, and organization switching.
-- The `role` column drives most workflow permissions in `dashboard.php`.
+- The `role` column drives most workflow permissions in `/zen/dashboard.php`.
 - The owner is also stored as a membership row with `role='owner'`.
 - Users can belong to many organizations, but only once per organization.
 

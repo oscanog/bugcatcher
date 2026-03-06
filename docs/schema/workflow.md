@@ -162,4 +162,4 @@ Reject path:
 
 ## Enforcement note
 
-The allowed workflow states above are not constrained by an `ENUM`, lookup table, or check constraint in `schema.sql`. They are enforced in PHP, mainly in `dashboard.php`.
+The allowed workflow states above are not constrained by an `ENUM`, lookup table, or check constraint in `schema.sql`. They are enforced in PHP, mainly in `/zen/dashboard.php`.

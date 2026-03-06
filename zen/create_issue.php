@@ -1,5 +1,5 @@
 <?php
-include 'db.php';
+require_once dirname(__DIR__) . '/db.php';
 
 function post_int($key): int
 {
@@ -19,7 +19,7 @@ function require_membership(mysqli $conn, int $orgId, int $userId): ?array
 
 $orgId = (int) ($_SESSION['active_org_id'] ?? 0);
 if ($orgId <= 0) {
-    header("Location: organization.php");
+    header("Location: /zen/organization.php");
     exit;
 }
 
@@ -136,7 +136,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             $stmtLabel->execute();
         }
 
-        header("Location: dashboard.php?page=dashboard");
+        header("Location: /zen/dashboard.php?page=dashboard");
         exit();
     }
 }
@@ -151,7 +151,7 @@ $labels = $conn->query("SELECT id, name, color FROM labels ORDER BY name ASC");
     <meta charset="UTF-8">
     <link rel="icon" type="image/svg+xml" href="/favicon.svg">
     <title>New Issue · BugCatcher</title>
-    <link rel="stylesheet" href="dashboard.css?v=8">
+    <link rel="stylesheet" href="/zen/dashboard.css?v=8">
 </head>
 
 <body>
@@ -159,18 +159,18 @@ $labels = $conn->query("SELECT id, name, color FROM labels ORDER BY name ASC");
     <aside class="sidebar">
         <div class="logo">BugCatcher</div>
         <nav class="nav">
-            <a href="dashboard.php">Dashboard</a>
+            <a href="/zen/dashboard.php?page=dashboard">Dashboard</a>
             <?php if (bugcatcher_is_system_admin_role($current_role)): ?>
                 <a href="#">Manage Users</a>
             <?php endif; ?>
-            <a href="organization.php">Organization</a>
-            <a href="project-passed-by-melvin/project_list.php">Projects</a>
-            <a href="checklist-passed-by-melvin/checklist_list.php">Checklist</a>
-            <a href="discord-link.php">Discord Link</a>
+            <a href="/zen/organization.php">Organization</a>
+            <a href="/melvin/project_list.php">Projects</a>
+            <a href="/melvin/checklist_list.php">Checklist</a>
+            <a href="/discord-link.php">Discord Link</a>
             <?php if (bugcatcher_is_super_admin_role($current_role)): ?>
-                <a href="super-admin/openclaw.php">Super Admin</a>
+                <a href="/super-admin/openclaw.php">Super Admin</a>
             <?php endif; ?>
-            <a href="register-passed-by-maglaque/logout.php" style="color:#ff7b72;">Logout</a>
+            <a href="/rainier/logout.php" style="color:#ff7b72;">Logout</a>
         </nav>
         <div style="margin-top:auto; color:#8b949e; font-size:12px;">
             Logged in as<br>
@@ -183,7 +183,7 @@ $labels = $conn->query("SELECT id, name, color FROM labels ORDER BY name ASC");
 
         <div class="topbar">
             <h1>New Issue</h1>
-            <a href="dashboard.php?page=dashboard" class="btn-green" style="background:#57606a;">Back</a>
+            <a href="/zen/dashboard.php?page=dashboard" class="btn-green" style="background:#57606a;">Back</a>
         </div>
 
         <div class="issue-container">

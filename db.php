@@ -11,8 +11,8 @@ try {
 
 if (!isset($_SESSION['id'])) {
     $loginLocation = bugcatcher_is_known_user_browser()
-        ? 'register-passed-by-maglaque/login.php?reason=expired'
-        : 'register-passed-by-maglaque/login.php';
+        ? '/rainier/login.php?reason=expired'
+        : '/rainier/login.php';
     header("Location: {$loginLocation}");
     exit();
 }

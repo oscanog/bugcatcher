@@ -48,7 +48,7 @@ username=your-admin
 email=you@example.com
 role=super_admin
 Password hash verification: OK
-Web login verification: OK (redirected to ../dashboard.php)
+Web login verification: OK (redirected to /zen/dashboard.php)
 ```
 
 or:
@@ -60,14 +60,14 @@ username=admin
 email=admin@bugcatcher.local
 role=super_admin
 Password hash verification: OK
-Web login verification: OK (redirected to ../dashboard.php)
+Web login verification: OK (redirected to /zen/dashboard.php)
 ```
 
 ## Login route
 
 After creating or resetting the account, log in through:
 
-- `https://bugcatcher.online/register-passed-by-maglaque/login.php`
+- `https://bugcatcher.online/rainier/login.php`
 
 Then open:
 
@@ -110,6 +110,6 @@ You do not need the old password. Running the script with the same email or user
 The script now stops if either of these checks fails:
 
 - the stored password hash does not match the password you entered
-- the live login request does not redirect to `../dashboard.php`
+- the live login request does not redirect to `/zen/dashboard.php`
 
 If that happens, keep the script output. It includes a response preview from the login page to help diagnose the failure.

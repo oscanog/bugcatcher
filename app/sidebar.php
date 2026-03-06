@@ -10,14 +10,14 @@ function bugcatcher_sidebar_href(string $activePage): string
         case 'super_admin':
             return '/super-admin/openclaw.php';
         case 'projects':
-            return '/project-passed-by-melvin/project_list.php';
+            return '/melvin/project_list.php';
         case 'checklist':
-            return '/checklist-passed-by-melvin/checklist_list.php';
+            return '/melvin/checklist_list.php';
         case 'organization':
-            return '/organization.php';
+            return '/zen/organization.php';
         case 'dashboard':
         default:
-            return '/dashboard.php?page=dashboard';
+            return '/zen/dashboard.php?page=dashboard';
     }
 }
 
@@ -29,10 +29,10 @@ function bugcatcher_render_sidebar(
     ?string $orgName = null
 ): void {
     $nav = [
-        'dashboard' => ['label' => 'Dashboard', 'href' => '/dashboard.php?page=dashboard'],
-        'organization' => ['label' => 'Organization', 'href' => '/organization.php'],
-        'projects' => ['label' => 'Projects', 'href' => '/project-passed-by-melvin/project_list.php'],
-        'checklist' => ['label' => 'Checklist', 'href' => '/checklist-passed-by-melvin/checklist_list.php'],
+        'dashboard' => ['label' => 'Dashboard', 'href' => '/zen/dashboard.php?page=dashboard'],
+        'organization' => ['label' => 'Organization', 'href' => '/zen/organization.php'],
+        'projects' => ['label' => 'Projects', 'href' => '/melvin/project_list.php'],
+        'checklist' => ['label' => 'Checklist', 'href' => '/melvin/checklist_list.php'],
         'discord_link' => ['label' => 'Discord Link', 'href' => '/discord-link.php'],
     ];
     if (bugcatcher_is_super_admin_role($currentRole)) {
@@ -47,7 +47,7 @@ function bugcatcher_render_sidebar(
                     <?= htmlspecialchars($item['label']) ?>
                 </a>
             <?php endforeach; ?>
-            <a href="/register-passed-by-maglaque/logout.php" class="logout">Logout</a>
+            <a href="/rainier/logout.php" class="logout">Logout</a>
         </nav>
         <div class="bc-userbox">
             <div>Logged in as</div>
@@ -60,3 +60,4 @@ function bugcatcher_render_sidebar(
     </aside>
     <?php
 }
+

@@ -7,7 +7,7 @@ $isLoggedIn = isset($_SESSION['id']);
 $isKnownBrowser = bugcatcher_is_known_user_browser();
 
 if (!$isLoggedIn && $isKnownBrowser) {
-    header("Location: register-passed-by-maglaque/login.php?reason=expired");
+    header("Location: /rainier/login.php?reason=expired");
     exit();
 }
 ?>
@@ -1206,9 +1206,9 @@ if (!$isLoggedIn && $isKnownBrowser) {
             BugCatcher
         </div>
         <div class="nav-links">
-            <a href="register-passed-by-maglaque/login.php">Login</a>
+            <a href="/rainier/login.php">Login</a>
             <?php if (!$isLoggedIn): ?>
-                <a href="register-passed-by-maglaque/signup.php">Sign Up</a>
+                <a href="/rainier/signup.php">Sign Up</a>
             <?php endif; ?>
         </div>
     </nav>
@@ -1273,7 +1273,7 @@ if (!$isLoggedIn && $isKnownBrowser) {
             <h1>Track Bugs Like a <span>Pro</span></h1>
             <p>BugCatcher helps you manage and track issues in your projects. Simple, fast, and effective issue tracking for teams of all sizes.</p>
             <div class="hero-actions">
-                <a href="register-passed-by-maglaque/login.php" class="btn">Get Started</a>
+                <a href="/rainier/login.php" class="btn">Get Started</a>
                 <a href="#features" class="btn btn-secondary">Learn More</a>
             </div>
             

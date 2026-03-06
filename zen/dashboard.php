@@ -1,9 +1,9 @@
 <?php
-include 'db.php';
+require_once dirname(__DIR__) . '/db.php';
 
 if (empty($_SESSION['active_org_id']) || (int) $_SESSION['active_org_id'] <= 0) {
   $_SESSION['org_error'] = "You haven't joined an organization to access this, please do it first.";
-  header("Location: organization.php");
+  header("Location: /zen/organization.php");
   exit;
 }
 
@@ -15,7 +15,7 @@ $label = $_GET['label'] ?? '';                  // label id
 $orgId = (int) ($_SESSION['active_org_id'] ?? 0);
 
 if ($orgId <= 0) {
-  header("Location: organization.php");
+  header("Location: /zen/organization.php");
   exit;
 }
 
@@ -276,7 +276,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'delet
   }
 
   // Back to list (preserve filters)
-  header("Location: dashboard.php?" . http_build_query([
+  header("Location: /zen/dashboard.php?" . http_build_query([
     'page' => 'dashboard',
     'status' => $status,
     'author' => $author,
@@ -373,7 +373,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'assig
   $stmt->close();
 
   // Back to list
-  header("Location: dashboard.php?" . http_build_query([
+  header("Location: /zen/dashboard.php?" . http_build_query([
     'page' => 'dashboard',
     'status' => $status,
     'author' => $author,
@@ -454,7 +454,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'assig
   }
   $stmt->close();
 
-  header("Location: dashboard.php?" . http_build_query([
+  header("Location: /zen/dashboard.php?" . http_build_query([
     'page' => 'dashboard',
     'status' => $status,
     'author' => $author,
@@ -521,7 +521,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'junio
   }
   $stmt->close();
 
-  header("Location: dashboard.php?" . http_build_query([
+  header("Location: /zen/dashboard.php?" . http_build_query([
     'page' => 'dashboard',
     'status' => $status,
     'author' => $author,
@@ -606,7 +606,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'assig
   }
   $stmt->close();
 
-  header("Location: dashboard.php?" . http_build_query([
+  header("Location: /zen/dashboard.php?" . http_build_query([
     'page' => 'dashboard',
     'status' => $status,
     'author' => $author,
@@ -691,7 +691,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'repor
   }
   $stmt->close();
 
-  header("Location: dashboard.php?" . http_build_query([
+  header("Location: /zen/dashboard.php?" . http_build_query([
     'page' => 'dashboard',
     'status' => $status,
     'author' => $author,
@@ -776,7 +776,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'repor
   }
   $stmt->close();
 
-  header("Location: dashboard.php?" . http_build_query([
+  header("Location: /zen/dashboard.php?" . http_build_query([
     'page' => 'dashboard',
     'status' => $status,
     'author' => $author,
@@ -834,7 +834,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'qa_le
   }
   $stmt->close();
 
-  header("Location: dashboard.php?" . http_build_query([
+  header("Location: /zen/dashboard.php?" . http_build_query([
     'page' => 'dashboard',
     'status' => $status,
     'author' => $author,
@@ -909,7 +909,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'qa_le
   }
   $stmt->close();
 
-  header("Location: dashboard.php?" . http_build_query([
+  header("Location: /zen/dashboard.php?" . http_build_query([
     'page' => 'dashboard',
     'status' => $status,
     'author' => $author,
@@ -964,7 +964,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'pm_cl
   }
   $stmt->close();
 
-  header("Location: dashboard.php?" . http_build_query([
+  header("Location: /zen/dashboard.php?" . http_build_query([
     'page' => 'dashboard',
     'status' => 'closed',
     'author' => $author,
@@ -1088,12 +1088,12 @@ function issues_url($status, $author, $label)
   if ($label !== '')
     $qs['label'] = $label;
 
-  return "dashboard.php?" . http_build_query($qs);
+  return "/zen/dashboard.php?" . http_build_query($qs);
 }
 
 function issues_url_clear($status)
 {
-  return "dashboard.php?" . http_build_query([
+  return "/zen/dashboard.php?" . http_build_query([
     'page' => 'dashboard',
     'status' => $status
   ]);
@@ -1108,7 +1108,7 @@ function issues_url_clear($status)
   <title>BugCatcher</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
-  <link rel="stylesheet" href="dashboard.css?v=9">
+  <link rel="stylesheet" href="/zen/dashboard.css?v=9">
 </head>
 
 <body>
@@ -1116,19 +1116,19 @@ function issues_url_clear($status)
   <aside class="sidebar">
     <div class="logo">BugCatcher</div>
     <nav class="nav">
-      <a href="dashboard.php?page=dashboard" class="<?= $page === 'dashboard' ? 'active' : '' ?>">Dashboard</a>
+      <a href="/zen/dashboard.php?page=dashboard" class="<?= $page === 'dashboard' ? 'active' : '' ?>">Dashboard</a>
       <?php if ($scope === 'admin'): ?>
         <a href="#">Manage Users</a>
         <a href="#">All Reports</a>
       <?php endif; ?>
-      <a href="organization.php">Organization</a>
-      <a href="project-passed-by-melvin/project_list.php">Projects</a>
-      <a href="checklist-passed-by-melvin/checklist_list.php">Checklist</a>
-      <a href="discord-link.php">Discord Link</a>
+      <a href="/zen/organization.php">Organization</a>
+      <a href="/melvin/project_list.php">Projects</a>
+      <a href="/melvin/checklist_list.php">Checklist</a>
+      <a href="/discord-link.php">Discord Link</a>
       <?php if (bugcatcher_is_super_admin_role($current_role)): ?>
-        <a href="super-admin/openclaw.php">Super Admin</a>
+        <a href="/super-admin/openclaw.php">Super Admin</a>
       <?php endif; ?>
-      <a href="register-passed-by-maglaque/logout.php" style="color:#ff7b72;">Logout</a>
+      <a href="/rainier/logout.php" style="color:#ff7b72;">Logout</a>
     </nav>
     <div style="margin-top:auto; color:#8b949e; font-size:12px;">
       Logged in as<br>
@@ -1144,7 +1144,7 @@ function issues_url_clear($status)
         <h1>Dashboard</h1>
         <div>
           <span>Welcome, <?= htmlspecialchars($current_username) ?> (<?= htmlspecialchars($current_role) ?>)</span>
-          <a href="register-passed-by-maglaque/logout.php"
+          <a href="/rainier/logout.php"
             style="margin-left:15px; color:#cf222e; text-decoration:none; font-weight:600;">Logout</a>
         </div>
       </div>
@@ -1153,13 +1153,13 @@ function issues_url_clear($status)
         <h1 style="font-size:1.25rem;">Issues</h1>
 
         <?php if ($isProjectManager): ?>
-          <a href="create_issue.php" class="btn-green">New Issue</a>
+          <a href="/zen/create_issue.php" class="btn-green">New Issue</a>
         <?php endif; ?>
       </div>
     <?php else: ?>
       <div class="topbar">
         <h1>Issues</h1>
-        <a href="create_issue.php" class="btn-green">New Issue</a>
+        <a href="/zen/create_issue.php" class="btn-green">New Issue</a>
       </div>
     <?php endif; ?>
 

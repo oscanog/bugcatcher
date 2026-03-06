@@ -30,8 +30,8 @@ $includeArchived = isset($_GET['show']) && $_GET['show'] === 'all';
 $projects = bugcatcher_checklist_fetch_projects($conn, $context['org_id'], $includeArchived);
 
 bugcatcher_shell_start('Projects', 'projects', $context, [
-    ['href' => '/project-passed-by-melvin/project_form.php', 'label' => 'New Project'],
-    ['href' => '/checklist-passed-by-melvin/checklist_list.php', 'label' => 'Open Checklist', 'variant' => 'secondary'],
+    ['href' => '/melvin/project_form.php', 'label' => 'New Project'],
+    ['href' => '/melvin/checklist_list.php', 'label' => 'Open Checklist', 'variant' => 'secondary'],
 ]);
 ?>
 
@@ -79,9 +79,9 @@ bugcatcher_shell_start('Projects', 'projects', $context, [
                     <td><?= (int) $project['open_item_count'] ?></td>
                     <td>
                         <div class="bc-inline">
-                            <a href="/project-passed-by-melvin/project_detail.php?id=<?= (int) $project['id'] ?>">View</a>
+                            <a href="/melvin/project_detail.php?id=<?= (int) $project['id'] ?>">View</a>
                             <?php if (bugcatcher_checklist_is_manager_role($context['org_role'])): ?>
-                                <a href="/project-passed-by-melvin/project_form.php?id=<?= (int) $project['id'] ?>">Edit</a>
+                                <a href="/melvin/project_form.php?id=<?= (int) $project['id'] ?>">Edit</a>
                                 <form method="post">
                                     <input type="hidden" name="project_id" value="<?= (int) $project['id'] ?>">
                                     <input type="hidden" name="action" value="<?= $project['status'] === 'active' ? 'archive' : 'activate' ?>">
@@ -100,3 +100,4 @@ bugcatcher_shell_start('Projects', 'projects', $context, [
 </div>
 
 <?php bugcatcher_shell_end(); ?>
+

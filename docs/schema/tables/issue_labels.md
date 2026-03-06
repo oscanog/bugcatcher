@@ -23,8 +23,8 @@ Bridge table that links issues to labels.
 
 ## How the application uses it
 
-- `create_issue.php` inserts one row per selected label when an issue is created.
-- `dashboard.php` filters issues by label through a subquery on this table.
+- `/zen/create_issue.php` inserts one row per selected label when an issue is created.
+- `/zen/dashboard.php` filters issues by label through a subquery on this table.
 - Deleting an issue cascades and removes its label links automatically.
 
 ## Known limitations
