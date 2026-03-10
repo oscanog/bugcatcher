@@ -7,10 +7,43 @@ TEST_ORG_ID="${TEST_ORG_ID:-}"
 TEST_PROJECT_ID="${TEST_PROJECT_ID:-}"
 RUN_SUBMIT_VALIDATION="${RUN_SUBMIT_VALIDATION:-0}"
 CLEANUP_SUBMIT_VALIDATION="${CLEANUP_SUBMIT_VALIDATION:-1}"
+BUGCATCHER_ROOT="${BUGCATCHER_ROOT:-/var/www/bugcatcher}"
+BUGCATCHER_CONFIG_PATH="${BUGCATCHER_CONFIG_PATH:-}"
 
-eval "$(php <<'PHP'
+resolve_config_path() {
+    local root="$1"
+    local explicit="$2"
+    local candidate=""
+
+    if [[ -n "$explicit" ]]; then
+        if [[ -f "$explicit" ]]; then
+            printf '%s\n' "$explicit"
+            return 0
+        fi
+        echo "Config file not found: $explicit" >&2
+        return 1
+    fi
+
+    for candidate in \
+        "$root/shared/config.php" \
+        "$root/infra/config/local.php" \
+        "$root/config/local.php"
+    do
+        if [[ -f "$candidate" ]]; then
+            printf '%s\n' "$candidate"
+            return 0
+        fi
+    done
+
+    echo "No config file found. Checked: $root/shared/config.php, $root/infra/config/local.php, $root/config/local.php" >&2
+    return 1
+}
+
+BUGCATCHER_CONFIG_PATH="$(resolve_config_path "$BUGCATCHER_ROOT" "$BUGCATCHER_CONFIG_PATH")"
+
+eval "$(BUGCATCHER_CONFIG_PATH="$BUGCATCHER_CONFIG_PATH" php <<'PHP'
 <?php
-$cfg = require '/var/www/bugcatcher/config/local.php';
+$cfg = require (string) getenv('BUGCATCHER_CONFIG_PATH');
 echo 'APP_BASE_URL=' . var_export($cfg['APP_BASE_URL'] ?? '', true) . PHP_EOL;
 echo 'OPENCLAW_INTERNAL_SHARED_SECRET=' . var_export($cfg['OPENCLAW_INTERNAL_SHARED_SECRET'] ?? '', true) . PHP_EOL;
 echo 'OPENCLAW_TEMP_UPLOAD_DIR=' . var_export($cfg['OPENCLAW_TEMP_UPLOAD_DIR'] ?? '', true) . PHP_EOL;

@@ -62,6 +62,29 @@ Add at least one enabled channel binding:
 - `Enabled`: checked
 - `Allow DM follow-up`: checked
 
+### Automated DeepSeek bootstrap (recommended)
+
+Run on the BugCatcher VM:
+
+```bash
+sudo DEEPSEEK_API_KEY='replace-with-deepseek-key' \
+  BUGCATCHER_ROOT=/var/www/bugcatcher \
+  bash /var/www/bugcatcher/infra/openclaw-upstream/configure_deepseek_default.sh
+```
+
+What this does:
+
+- upserts provider `deepseek` with base URL `https://api.deepseek.com/v1`
+- upserts model `deepseek-chat` as provider default
+- sets runtime defaults to DeepSeek provider/model
+- queues runtime reload through the control plane
+
+Optional overrides:
+
+- `DEEPSEEK_MODEL_ID` (default: `deepseek-chat`)
+- `DEEPSEEK_BASE_URL` (default: `https://api.deepseek.com/v1`)
+- `ADMIN_USER_ID` (default: first `super_admin`/`admin`)
+
 ### Providers
 
 #### If you use Kimi Coding key
@@ -112,8 +135,8 @@ For Moonshot provider:
 
 - `Enable OpenClaw`: checked
 - `Discord bot token`: paste real token
-- `Default provider`: select the provider you added
-- `Default model`: select the model you added
+- `Default provider`: select the provider you added (or keep `DeepSeek` if bootstrapped)
+- `Default model`: select the model you added (or keep `DeepSeek Chat` if bootstrapped)
 - click `Save Runtime`
 - click `Reload OpenClaw Config`
 
@@ -127,6 +150,8 @@ In `Overview` tab, verify:
 - `Discord state: configured`
 - `Provider error: None`
 - `Discord error: None`
+- `Default provider`: `DeepSeek` (if using bootstrap)
+- `Default model`: `DeepSeek Chat` (if using bootstrap)
 
 Queue note:
 
@@ -146,7 +171,7 @@ sudo journalctl -u openclaw-gateway.service -n 120 --no-pager
 
 Healthy signals in logs:
 
-- `agent model: kimi-coding/k2p5` (or `moonshot/kimi-k2.5`)
+- `agent model: deepseek/deepseek-chat` (or `kimi-coding/k2p5`, `moonshot/kimi-k2.5`)
 - `channels resolved: <guild>/<channel>`
 - `logged in to discord as ...`
 
@@ -171,6 +196,7 @@ Cause:
 
 Fix:
 
+- for DeepSeek use `deepseek` + model `deepseek-chat`
 - for Kimi Coding use `kimi-coding` + model `k2p5`
 - for Moonshot use `moonshot` + model `kimi-k2.5`
 - regenerate provider key and paste again

@@ -1,6 +1,8 @@
 <?php
 
 const BUGCATCHER_SHARED_CONFIG_PATH = '/var/www/bugcatcher/shared/config.php';
+const BUGCATCHER_INFRA_LOCAL_CONFIG_PATH = __DIR__ . '/../infra/config/local.php';
+const BUGCATCHER_LEGACY_LOCAL_CONFIG_PATH = __DIR__ . '/../config/local.php';
 const BUGCATCHER_KNOWN_USER_COOKIE = 'bugcatcher_known_user';
 
 function bugcatcher_default_config(): array
@@ -34,7 +36,8 @@ function bugcatcher_candidate_config_paths(): array
     }
 
     $paths[] = BUGCATCHER_SHARED_CONFIG_PATH;
-    $paths[] = dirname(__DIR__) . DIRECTORY_SEPARATOR . 'config' . DIRECTORY_SEPARATOR . 'local.php';
+    $paths[] = BUGCATCHER_INFRA_LOCAL_CONFIG_PATH;
+    $paths[] = BUGCATCHER_LEGACY_LOCAL_CONFIG_PATH;
 
     return array_values(array_unique($paths));
 }

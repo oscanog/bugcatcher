@@ -2,13 +2,39 @@
 set -euo pipefail
 
 BUGCATCHER_ROOT="${BUGCATCHER_ROOT:-/var/www/bugcatcher}"
-CONFIG_PATH="${BUGCATCHER_CONFIG_PATH:-$BUGCATCHER_ROOT/config/local.php}"
+CONFIG_PATH="${BUGCATCHER_CONFIG_PATH:-}"
 LOGIN_PATH="${LOGIN_PATH:-/rainier/login.php}"
 
-if [[ ! -f "$CONFIG_PATH" ]]; then
-    echo "Config file not found: $CONFIG_PATH" >&2
-    exit 1
-fi
+resolve_config_path() {
+    local root="$1"
+    local explicit="$2"
+    local candidate=""
+
+    if [[ -n "$explicit" ]]; then
+        if [[ -f "$explicit" ]]; then
+            printf '%s\n' "$explicit"
+            return 0
+        fi
+        echo "Config file not found: $explicit" >&2
+        return 1
+    fi
+
+    for candidate in \
+        "$root/shared/config.php" \
+        "$root/infra/config/local.php" \
+        "$root/config/local.php"
+    do
+        if [[ -f "$candidate" ]]; then
+            printf '%s\n' "$candidate"
+            return 0
+        fi
+    done
+
+    echo "No config file found. Checked: $root/shared/config.php, $root/infra/config/local.php, $root/config/local.php" >&2
+    return 1
+}
+
+CONFIG_PATH="$(resolve_config_path "$BUGCATCHER_ROOT" "$CONFIG_PATH")"
 
 prompt_nonempty() {
     local label="$1"
