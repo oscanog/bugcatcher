@@ -21,13 +21,14 @@ if ($orgId <= 0) {
 
 // ---- Organization owner check ----
 $orgOwnerId = 0;
-$stmt = $conn->prepare("SELECT owner_id FROM organizations WHERE id=? LIMIT 1");
+$stmt = $conn->prepare("SELECT owner_id, name FROM organizations WHERE id=? LIMIT 1");
 $stmt->bind_param("i", $orgId);
 $stmt->execute();
 $rowOrg = $stmt->get_result()->fetch_assoc();
 $stmt->close();
 
 $orgOwnerId = (int) ($rowOrg['owner_id'] ?? 0);
+$orgName = trim((string) ($rowOrg['name'] ?? 'Organization'));
 $isOrgOwner = ($orgOwnerId > 0 && $orgOwnerId === (int) $current_user_id);
 
 // normalize
@@ -1038,6 +1039,56 @@ $stmt->execute();
 $qaLeads = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 $stmt->close();
 
+/* ---------------- Ranking: Closed Issues by Role ---------------- */
+
+$rankingRoles = [
+  'Project Manager',
+  'QA Lead',
+  'Senior QA',
+  'Senior Developer',
+  'QA Tester',
+  'Junior Developer'
+];
+
+$rankingPlaceholders = implode(',', array_fill(0, count($rankingRoles), '?'));
+$rankingTypes = "i" . str_repeat("s", count($rankingRoles));
+
+$rankingSql = "
+  SELECT
+    u.id,
+    u.username,
+    om.role,
+    COUNT(i.id) AS closed_total
+  FROM org_members om
+  JOIN users u
+    ON u.id = om.user_id
+  LEFT JOIN issues i
+    ON i.org_id = om.org_id
+    AND i.status = 'closed'
+    AND (
+      (om.role = 'Project Manager'   AND i.pm_id = om.user_id) OR
+      (om.role = 'QA Lead'           AND i.assigned_qa_lead_id = om.user_id) OR
+      (om.role = 'Senior QA'         AND i.assigned_senior_qa_id = om.user_id) OR
+      (om.role = 'Senior Developer'  AND i.assigned_dev_id = om.user_id) OR
+      (om.role = 'QA Tester'         AND i.assigned_qa_id = om.user_id) OR
+      (om.role = 'Junior Developer'  AND i.assigned_junior_id = om.user_id)
+    )
+  WHERE om.org_id = ?
+    AND om.role IN ($rankingPlaceholders)
+  GROUP BY u.id, u.username, om.role
+  ORDER BY closed_total DESC, u.username ASC
+";
+
+$rankingStmt = $conn->prepare($rankingSql);
+$rankingParams = array_merge([$orgId], $rankingRoles);
+$rankingStmt->bind_param($rankingTypes, ...$rankingParams);
+$rankingStmt->execute();
+$rankingRows = $rankingStmt->get_result()->fetch_all(MYSQLI_ASSOC);
+$rankingStmt->close();
+
+$topTenRanking = array_slice($rankingRows, 0, 10);
+$remainingRanking = array_slice($rankingRows, 10);
+
 // ---- Issues query (prepared + optional author/label filters) ----
 $sql = "
   SELECT issues.*, users.username
@@ -1108,7 +1159,7 @@ function issues_url_clear($status)
   <title>BugCatcher</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
-  <link rel="stylesheet" href="/zen/dashboard.css?v=9">
+  <link rel="stylesheet" href="/zen/dashboard.css?v=12">
 </head>
 
 <body>
@@ -1154,6 +1205,83 @@ function issues_url_clear($status)
           <span>Welcome, <?= htmlspecialchars($current_username) ?> (<?= htmlspecialchars($current_role) ?>)</span>
           <a href="/rainier/logout.php" class="topbar-logout">Logout</a>
         </div>
+      </div>
+
+      <div class="leaderboard-card">
+        <div class="leaderboard-head">
+          <div>
+            <h2>Top 10 in <?= htmlspecialchars($orgName) ?></h2>
+            <div class="leaderboard-sub">Based on the number of closed issues completed by role</div>
+          </div>
+        </div>
+
+        <?php if (!empty($topTenRanking)): ?>
+          <div class="leaderboard-list">
+            <?php foreach ($topTenRanking as $index => $rankUser): ?>
+              <?php
+              $rankClass = '';
+              if ($index === 0)
+                $rankClass = 'rank-gold';
+              elseif ($index === 1)
+                $rankClass = 'rank-silver';
+              elseif ($index === 2)
+                $rankClass = 'rank-bronze';
+              ?>
+              <div class="leaderboard-row <?= $rankClass ?>">
+                <?php if ($index === 0): ?>
+                  <span class="leaderboard-crown">&#128081;</span>
+                <?php endif; ?>
+                <div class="leaderboard-left">
+                  <span class="leaderboard-rank">#<?= $index + 1 ?></span>
+                  <span class="leaderboard-avatar"><?= strtoupper(substr($rankUser['username'], 0, 1)) ?></span>
+                  <div class="leaderboard-userinfo">
+                    <div class="leaderboard-name"><?= htmlspecialchars($rankUser['username']) ?></div>
+                    <div class="leaderboard-role"><?= htmlspecialchars($rankUser['role']) ?></div>
+                  </div>
+                </div>
+                <div class="leaderboard-score"><?= (int) $rankUser['closed_total'] ?> closed</div>
+              </div>
+            <?php endforeach; ?>
+          </div>
+
+          <?php if (!empty($remainingRanking)): ?>
+            <div class="leaderboard-footer">
+              <button type="button" class="leaderboard-viewmore-btn" id="viewMoreRankingBtn">View More</button>
+            </div>
+            <div class="leaderboard-all" id="allRankingWrap" style="display:none;">
+              <div class="leaderboard-all-top">
+                <div class="leaderboard-all-title">More ranked members</div>
+                <div class="leaderboard-all-controls">
+                  <input type="text" id="moreRankingSearch" class="leaderboard-search-input" placeholder="Search user..."
+                    autocomplete="off">
+                  <select id="moreRankingSort" class="leaderboard-sort-select">
+                    <option value="desc">Highest to Lowest</option>
+                    <option value="asc">Lowest to Highest</option>
+                  </select>
+                </div>
+              </div>
+              <div id="moreRankingList">
+                <?php foreach ($remainingRanking as $index => $rankUser): ?>
+                  <div class="leaderboard-row more-ranking-row" data-closed-total="<?= (int) $rankUser['closed_total'] ?>"
+                    data-username="<?= htmlspecialchars(strtolower($rankUser['username']), ENT_QUOTES) ?>"
+                    data-role="<?= htmlspecialchars(strtolower($rankUser['role']), ENT_QUOTES) ?>">
+                    <div class="leaderboard-left">
+                      <span class="leaderboard-rank more-ranking-number">#<?= $index + 11 ?></span>
+                      <span class="leaderboard-avatar"><?= strtoupper(substr($rankUser['username'], 0, 1)) ?></span>
+                      <div class="leaderboard-userinfo">
+                        <div class="leaderboard-name"><?= htmlspecialchars($rankUser['username']) ?></div>
+                        <div class="leaderboard-role"><?= htmlspecialchars($rankUser['role']) ?></div>
+                      </div>
+                    </div>
+                    <div class="leaderboard-score"><?= (int) $rankUser['closed_total'] ?> closed</div>
+                  </div>
+                <?php endforeach; ?>
+              </div>
+            </div>
+          <?php endif; ?>
+        <?php else: ?>
+          <div class="leaderboard-empty">No ranked members yet.</div>
+        <?php endif; ?>
       </div>
 
       <div class="topbar topbar-secondary">
@@ -1707,6 +1835,107 @@ function issues_url_clear($status)
       setupSearch("author");
     <?php endif; ?>
     setupSearch("labels");
+
+    const viewMoreRankingBtn = document.getElementById("viewMoreRankingBtn");
+    const allRankingWrap = document.getElementById("allRankingWrap");
+
+    if (viewMoreRankingBtn && allRankingWrap) {
+      viewMoreRankingBtn.addEventListener("click", () => {
+        const isHidden = allRankingWrap.style.display === "none" || allRankingWrap.style.display === "";
+        allRankingWrap.style.display = isHidden ? "block" : "none";
+        viewMoreRankingBtn.textContent = isHidden ? "View Less" : "View More";
+      });
+    }
+
+    const moreRankingSort = document.getElementById("moreRankingSort");
+    const moreRankingSearch = document.getElementById("moreRankingSearch");
+    const moreRankingList = document.getElementById("moreRankingList");
+
+    function renumberMoreRankingRows(order = "desc") {
+      if (!moreRankingList) return;
+
+      const rows = Array.from(moreRankingList.querySelectorAll(".more-ranking-row"));
+      const startRank = 11;
+      const endRank = 10 + rows.length;
+
+      rows.forEach((row, index) => {
+        const num = row.querySelector(".more-ranking-number");
+        if (!num) return;
+
+        const rankNumber = (order === "asc") ? (endRank - index) : (startRank + index);
+        row.dataset.rankNumber = rankNumber;
+        num.textContent = `#${rankNumber}`;
+      });
+    }
+
+    function sortMoreRanking(order) {
+      if (!moreRankingList) return;
+
+      const rows = Array.from(moreRankingList.querySelectorAll(".more-ranking-row"));
+      rows.sort((a, b) => {
+        const aTotal = parseInt(a.dataset.closedTotal || "0", 10);
+        const bTotal = parseInt(b.dataset.closedTotal || "0", 10);
+        const aName = (a.dataset.username || "").toLowerCase();
+        const bName = (b.dataset.username || "").toLowerCase();
+
+        if (order === "asc") {
+          if (aTotal !== bTotal) return aTotal - bTotal;
+          return aName.localeCompare(bName);
+        }
+        if (aTotal !== bTotal) return bTotal - aTotal;
+        return aName.localeCompare(bName);
+      });
+
+      rows.forEach(row => moreRankingList.appendChild(row));
+      renumberMoreRankingRows(order);
+      filterMoreRankingRows();
+    }
+
+    function filterMoreRankingRows() {
+      if (!moreRankingList) return;
+
+      const q = (moreRankingSearch?.value || "").trim().toLowerCase();
+      const rows = Array.from(moreRankingList.querySelectorAll(".more-ranking-row"));
+      let hasVisible = false;
+
+      rows.forEach(row => {
+        const username = (row.dataset.username || "").toLowerCase();
+        const role = (row.dataset.role || "").toLowerCase();
+        const rank = String(row.dataset.rankNumber || "");
+
+        const match = (q === "" || username.includes(q) || role.includes(q) || rank.includes(q));
+        row.style.display = match ? "flex" : "none";
+        if (match)
+          hasVisible = true;
+      });
+
+      let empty = document.getElementById("moreRankingEmpty");
+      if (!empty) {
+        empty = document.createElement("div");
+        empty.id = "moreRankingEmpty";
+        empty.className = "leaderboard-empty";
+        empty.textContent = "No matching ranked member found.";
+        empty.style.display = "none";
+        moreRankingList.insertAdjacentElement("afterend", empty);
+      }
+
+      empty.style.display = hasVisible ? "none" : "block";
+    }
+
+    if (moreRankingSort) {
+      moreRankingSort.addEventListener("change", () => {
+        sortMoreRanking(moreRankingSort.value);
+      });
+    }
+
+    if (moreRankingSearch) {
+      moreRankingSearch.addEventListener("input", () => {
+        filterMoreRankingRows();
+      });
+    }
+
+    renumberMoreRankingRows("desc");
+    filterMoreRankingRows();
   </script>
 
 </body>

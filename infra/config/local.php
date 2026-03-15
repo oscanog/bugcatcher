@@ -1,0 +1,20 @@
+<?php
+
+return [
+    'APP_ENV' => 'development',
+    'APP_BASE_URL' => 'http://localhost',
+    'DB_HOST' => '127.0.0.1',
+    'DB_PORT' => 3306,
+    'DB_NAME' => 'bug_catcher',
+    'DB_USER' => 'root',
+    'DB_PASS' => '',
+    'UPLOADS_DIR' => dirname(__DIR__, 2) . DIRECTORY_SEPARATOR . 'uploads' . DIRECTORY_SEPARATOR . 'issues',
+    'UPLOADS_URL' => 'uploads/issues',
+    'CHECKLIST_UPLOADS_DIR' => dirname(__DIR__, 2) . DIRECTORY_SEPARATOR . 'uploads' . DIRECTORY_SEPARATOR . 'checklists',
+    'CHECKLIST_UPLOADS_URL' => 'uploads/checklists',
+    'CHECKLIST_BOT_SHARED_SECRET' => 'replace-with-a-long-random-secret',
+    'OPENCLAW_INTERNAL_SHARED_SECRET' => 'replace-with-a-second-long-random-secret',
+    'OPENCLAW_ENCRYPTION_KEY' => 'replace-with-a-32-byte-secret',
+    'OPENCLAW_TEMP_UPLOAD_DIR' => dirname(__DIR__, 2) . DIRECTORY_SEPARATOR . 'uploads' . DIRECTORY_SEPARATOR . 'openclaw-tmp',
+    'OPENCLAW_LOG_LEVEL' => 'info',
+];

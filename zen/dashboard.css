@@ -162,6 +162,244 @@ body.drawer-open {
   flex-wrap: wrap;
 }
 
+/* ================= Leaderboard ================= */
+
+.leaderboard-card {
+  background: #fff;
+  border: 1px solid #d0d7de;
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 18px;
+  box-shadow: 0 1px 2px rgba(27, 31, 36, 0.04);
+}
+
+.leaderboard-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.leaderboard-head h2 {
+  font-size: 1.15rem;
+  margin: 0;
+  color: #24292f;
+}
+
+.leaderboard-sub {
+  margin-top: 4px;
+  font-size: 13px;
+  color: #57606a;
+}
+
+.leaderboard-list,
+.leaderboard-all {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.leaderboard-all {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid #d8dee4;
+}
+
+.leaderboard-all-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #24292f;
+}
+
+.leaderboard-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid #d8dee4;
+  border-radius: 10px;
+  background: #f6f8fa;
+}
+
+.leaderboard-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.leaderboard-rank {
+  min-width: 38px;
+  font-weight: 700;
+  color: #0969da;
+}
+
+.leaderboard-avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: #24292f;
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.leaderboard-userinfo {
+  min-width: 0;
+}
+
+.leaderboard-name {
+  font-weight: 600;
+  color: #24292f;
+}
+
+.leaderboard-role {
+  font-size: 12px;
+  color: #57606a;
+}
+
+.leaderboard-score {
+  white-space: nowrap;
+  font-weight: 700;
+  color: #1a7f37;
+}
+
+.leaderboard-footer {
+  margin-top: 14px;
+}
+
+.leaderboard-viewmore-btn {
+  border: 1px solid #d0d7de;
+  background: #fff;
+  color: #0969da;
+  border-radius: 8px;
+  padding: 8px 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.leaderboard-viewmore-btn:hover {
+  background: #f6f8fa;
+}
+
+.leaderboard-empty {
+  padding: 12px 0;
+  color: #57606a;
+  font-size: 14px;
+}
+
+.leaderboard-all-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+
+.leaderboard-all-controls {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.leaderboard-sort-select {
+  border: 1px solid #d0d7de;
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: #fff;
+  color: #24292f;
+  font-size: 14px;
+}
+
+.leaderboard-search-input {
+  min-width: 220px;
+  padding: 10px 12px;
+  border: 1px solid #d0d7de;
+  border-radius: 8px;
+  font-size: 14px;
+  outline: none;
+  background: #fff;
+}
+
+.leaderboard-search-input:focus {
+  border-color: #2da44e;
+  box-shadow: 0 0 0 3px rgba(45, 164, 78, 0.15);
+}
+
+.rank-gold,
+.rank-silver,
+.rank-bronze {
+  position: relative;
+  overflow: visible;
+}
+
+.rank-gold {
+  background: linear-gradient(90deg, #fff8dc, #ffe082);
+  border-left: 4px solid #d4af37;
+  animation: goldGlow 2s infinite alternate;
+}
+
+.rank-silver {
+  background: linear-gradient(90deg, #f5f5f5, #e0e0e0);
+  border-left: 4px solid #9e9e9e;
+}
+
+.rank-bronze {
+  background: linear-gradient(90deg, #fff3e0, #ffcc80);
+  border-left: 4px solid #cd7f32;
+}
+
+.rank-gold .leaderboard-rank {
+  color: #b8860b;
+}
+
+.rank-silver .leaderboard-rank {
+  color: #757575;
+}
+
+.rank-bronze .leaderboard-rank {
+  color: #8d4b20;
+}
+
+.leaderboard-crown {
+  position: absolute;
+  top: -18px;
+  left: 55px;
+  font-size: 24px;
+  line-height: 1;
+  z-index: 2;
+  animation: crownFloat 1.8s ease-in-out infinite alternate;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.18));
+}
+
+@keyframes goldGlow {
+  0% {
+    box-shadow: 0 0 4px rgba(212, 175, 55, 0.4);
+  }
+
+  100% {
+    box-shadow:
+      0 0 8px rgba(212, 175, 55, 0.7),
+      0 0 16px rgba(212, 175, 55, 0.6);
+  }
+}
+
+@keyframes crownFloat {
+  0% {
+    transform: translateY(0) rotate(-6deg);
+  }
+
+  100% {
+    transform: translateY(-6px) rotate(6deg);
+  }
+}
+
 /* ================= Issues ================= */
 
 .issue-container {

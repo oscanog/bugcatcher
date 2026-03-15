@@ -5,7 +5,7 @@ bugcatcher_start_session();
 include "connection.php";
 
 if (isset($_SESSION['id'])) {
-  header("Location: /zen/dashboard.php");
+  header("Location: /zen/organization.php");
   exit();
 }
 
@@ -73,7 +73,7 @@ if (isset($_POST['login'])) {
           }
         }
 
-        header("Location: /zen/dashboard.php");
+        header("Location: /zen/organization.php");
         exit();
       }
     }
