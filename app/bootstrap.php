@@ -24,12 +24,14 @@ function bugcatcher_default_config(): array
         'OPENCLAW_ENCRYPTION_KEY' => 'replace-with-32-byte-secret',
         'OPENCLAW_TEMP_UPLOAD_DIR' => dirname(__DIR__) . DIRECTORY_SEPARATOR . 'uploads' . DIRECTORY_SEPARATOR . 'openclaw-tmp',
         'OPENCLAW_LOG_LEVEL' => 'info',
+        'MAIL_MAILER' => '',
         'MAIL_HOST' => 'smtp.gmail.com',
         'MAIL_PORT' => 587,
         'MAIL_USERNAME' => '',
         'MAIL_PASSWORD' => '',
         'MAIL_ENCRYPTION' => 'tls',
-        'MAIL_FROM_EMAIL' => 'm.viner001@gmail.com',
+        'MAIL_FROM_ADDRESS' => '',
+        'MAIL_FROM_EMAIL' => 'no-reply@example.com',
         'MAIL_FROM_NAME' => 'BugCatcher',
         'PASSWORD_RESET_OTP_TTL_SECONDS' => 600,
         'PASSWORD_RESET_RESEND_COOLDOWN_SECONDS' => 60,
@@ -87,12 +89,17 @@ function bugcatcher_load_config(): array
     $config['OPENCLAW_ENCRYPTION_KEY'] = (string) ($config['OPENCLAW_ENCRYPTION_KEY'] ?? '');
     $config['OPENCLAW_TEMP_UPLOAD_DIR'] = rtrim((string) ($config['OPENCLAW_TEMP_UPLOAD_DIR'] ?? ''), "\\/");
     $config['OPENCLAW_LOG_LEVEL'] = (string) ($config['OPENCLAW_LOG_LEVEL'] ?? 'info');
+    $config['MAIL_MAILER'] = strtolower(trim((string) ($config['MAIL_MAILER'] ?? '')));
     $config['MAIL_HOST'] = trim((string) ($config['MAIL_HOST'] ?? ''));
     $config['MAIL_PORT'] = (int) ($config['MAIL_PORT'] ?? 587);
     $config['MAIL_USERNAME'] = trim((string) ($config['MAIL_USERNAME'] ?? ''));
     $config['MAIL_PASSWORD'] = (string) ($config['MAIL_PASSWORD'] ?? '');
     $config['MAIL_ENCRYPTION'] = strtolower(trim((string) ($config['MAIL_ENCRYPTION'] ?? 'tls')));
-    $config['MAIL_FROM_EMAIL'] = trim((string) ($config['MAIL_FROM_EMAIL'] ?? ''));
+    $config['MAIL_FROM_ADDRESS'] = trim((string) ($config['MAIL_FROM_ADDRESS'] ?? ''));
+    if ($config['MAIL_FROM_ADDRESS'] === '') {
+        $config['MAIL_FROM_ADDRESS'] = trim((string) ($config['MAIL_FROM_EMAIL'] ?? ''));
+    }
+    $config['MAIL_FROM_EMAIL'] = $config['MAIL_FROM_ADDRESS'];
     $config['MAIL_FROM_NAME'] = trim((string) ($config['MAIL_FROM_NAME'] ?? 'BugCatcher'));
     $config['PASSWORD_RESET_OTP_TTL_SECONDS'] = max(60, (int) ($config['PASSWORD_RESET_OTP_TTL_SECONDS'] ?? 600));
     $config['PASSWORD_RESET_RESEND_COOLDOWN_SECONDS'] = max(0, (int) ($config['PASSWORD_RESET_RESEND_COOLDOWN_SECONDS'] ?? 60));

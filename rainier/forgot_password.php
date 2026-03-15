@@ -84,6 +84,8 @@ $currentStep = bugcatcher_password_reset_current_step();
 $emailValue = ($emailValue !== '') ? $emailValue : bugcatcher_password_reset_session_email();
 $maskedEmail = ($emailValue !== '') ? bugcatcher_password_reset_mask_email($emailValue) : '';
 $csrfToken = bugcatcher_password_reset_csrf_token();
+$devPreviewOtp = ($currentStep === 'otp') ? bugcatcher_password_reset_dev_preview_otp($emailValue) : '';
+$formAction = htmlspecialchars(bugcatcher_path('rainier/forgot_password.php'));
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -122,8 +124,15 @@ $csrfToken = bugcatcher_password_reset_csrf_token();
         </div><br>
       <?php endif; ?>
 
+      <?php if ($devPreviewOtp !== ''): ?>
+        <div class='message info'>
+          <p>Preview mailer is active for this environment. Use the code below.</p>
+          <p class="auth-dev-otp" data-test-otp="<?= htmlspecialchars($devPreviewOtp) ?>"><?= htmlspecialchars($devPreviewOtp) ?></p>
+        </div><br>
+      <?php endif; ?>
+
       <?php if ($currentStep === 'request'): ?>
-        <form action="#" method="POST" class="auth-form">
+        <form action="<?= $formAction ?>" method="POST" class="auth-form">
           <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
           <input type="hidden" name="action" value="request_otp">
 
@@ -148,7 +157,7 @@ $csrfToken = bugcatcher_password_reset_csrf_token();
           Enter the latest 6-digit code sent to <?= htmlspecialchars($maskedEmail !== '' ? $maskedEmail : $emailValue) ?>.
         </p>
 
-        <form action="#" method="POST" class="auth-form">
+        <form action="<?= $formAction ?>" method="POST" class="auth-form">
           <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
           <input type="hidden" name="action" value="verify_otp">
           <input type="hidden" name="email" value="<?= htmlspecialchars($emailValue) ?>">
@@ -172,14 +181,14 @@ $csrfToken = bugcatcher_password_reset_csrf_token();
         </form>
 
         <div class="auth-actions">
-          <form action="#" method="POST">
+          <form action="<?= $formAction ?>" method="POST">
             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
             <input type="hidden" name="action" value="resend_otp">
             <input type="hidden" name="email" value="<?= htmlspecialchars($emailValue) ?>">
             <button type="submit" class="btn btn-secondary">Resend Code</button>
           </form>
 
-          <form action="#" method="POST">
+          <form action="<?= $formAction ?>" method="POST">
             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
             <input type="hidden" name="action" value="start_over">
             <button type="submit" class="btn btn-secondary">Start Over</button>
@@ -190,7 +199,7 @@ $csrfToken = bugcatcher_password_reset_csrf_token();
           OTP verified for <?= htmlspecialchars($maskedEmail !== '' ? $maskedEmail : $emailValue) ?>. Set your new password below.
         </p>
 
-        <form action="#" method="POST" class="auth-form">
+        <form action="<?= $formAction ?>" method="POST" class="auth-form">
           <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
           <input type="hidden" name="action" value="reset_password">
 

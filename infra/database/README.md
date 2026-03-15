@@ -38,11 +38,13 @@ New related runtime config keys:
 
 Password reset mail config keys:
 
+- `MAIL_MAILER`
 - `MAIL_HOST`
 - `MAIL_PORT`
 - `MAIL_USERNAME`
 - `MAIL_PASSWORD`
 - `MAIL_ENCRYPTION`
+- `MAIL_FROM_ADDRESS`
 - `MAIL_FROM_EMAIL`
 - `MAIL_FROM_NAME`
 - `PASSWORD_RESET_OTP_TTL_SECONDS`

@@ -30,6 +30,21 @@ function bugcatcher_password_reset_now(): string
     return gmdate('Y-m-d H:i:s');
 }
 
+function bugcatcher_password_reset_utc_timestamp(?string $value): ?int
+{
+    $rawValue = trim((string) $value);
+    if ($rawValue === '') {
+        return null;
+    }
+
+    $date = DateTimeImmutable::createFromFormat('Y-m-d H:i:s', $rawValue, new DateTimeZone('UTC'));
+    if (!$date instanceof DateTimeImmutable) {
+        return null;
+    }
+
+    return $date->getTimestamp();
+}
+
 function bugcatcher_password_reset_normalize_email(string $email): string
 {
     return strtolower(trim($email));
@@ -84,7 +99,9 @@ function bugcatcher_password_reset_mark_verified(string $email, int $requestId):
 function bugcatcher_password_reset_clear_state(): void
 {
     bugcatcher_start_session();
+    $email = bugcatcher_password_reset_session_email();
     unset($_SESSION[BUGCATCHER_PASSWORD_RESET_SESSION_KEY]);
+    bugcatcher_mail_preview_clear('password_reset_otp', $email);
 }
 
 function bugcatcher_password_reset_current_step(): string
@@ -129,6 +146,36 @@ function bugcatcher_password_reset_verify_csrf(string $token): bool
     bugcatcher_start_session();
     $expected = (string) ($_SESSION[BUGCATCHER_PASSWORD_RESET_CSRF_SESSION_KEY] ?? '');
     return ($expected !== '' && $token !== '' && hash_equals($expected, $token));
+}
+
+function bugcatcher_password_reset_dev_preview_enabled(): bool
+{
+    return bugcatcher_mail_mailer_name() === 'preview';
+}
+
+function bugcatcher_password_reset_clear_dev_preview(): void
+{
+    $email = bugcatcher_password_reset_session_email();
+    bugcatcher_mail_preview_clear('password_reset_otp', $email);
+}
+
+function bugcatcher_password_reset_dev_preview_otp(string $email = ''): string
+{
+    if (!bugcatcher_password_reset_dev_preview_enabled()) {
+        return '';
+    }
+
+    $message = bugcatcher_mail_preview_latest_message('password_reset_otp', bugcatcher_password_reset_normalize_email($email));
+    if (!$message) {
+        return '';
+    }
+
+    $otp = trim((string) ($message['metadata']['otp'] ?? ''));
+    if ($otp === '' || !preg_match('/^\d{6}$/', $otp)) {
+        return '';
+    }
+
+    return $otp;
 }
 
 function bugcatcher_password_reset_generate_otp(): string
@@ -184,8 +231,8 @@ function bugcatcher_password_reset_request_is_expired(?array $request): bool
         return true;
     }
 
-    $expiresAt = strtotime((string) $request['expires_at']);
-    if ($expiresAt === false) {
+    $expiresAt = bugcatcher_password_reset_utc_timestamp((string) $request['expires_at']);
+    if ($expiresAt === null) {
         return true;
     }
 
@@ -198,8 +245,8 @@ function bugcatcher_password_reset_cooldown_remaining(?array $request): int
         return 0;
     }
 
-    $lastSentAt = strtotime((string) $request['last_sent_at']);
-    if ($lastSentAt === false) {
+    $lastSentAt = bugcatcher_password_reset_utc_timestamp((string) $request['last_sent_at']);
+    if ($lastSentAt === null) {
         return 0;
     }
 
@@ -235,27 +282,24 @@ function bugcatcher_password_reset_invalidate_unused_requests(mysqli $conn, int 
 
 function bugcatcher_password_reset_send_email(string $toEmail, string $toName, string $otp): void
 {
-    $appName = (string) bugcatcher_config('MAIL_FROM_NAME', 'BugCatcher');
-    $htmlBody = sprintf(
-        '<p>You requested a password reset for %s.</p><p>Your 6-digit reset code is <strong style="font-size:22px; letter-spacing:4px;">%s</strong>.</p><p>This code expires in %d minutes.</p><p>If you did not request this, you can ignore this email.</p>',
-        htmlspecialchars($appName, ENT_QUOTES, 'UTF-8'),
-        htmlspecialchars($otp, ENT_QUOTES, 'UTF-8'),
-        (int) ceil(bugcatcher_password_reset_ttl_seconds() / 60)
+    bugcatcher_mail_send_message(
+        bugcatcher_mail_password_reset_message(
+            $toEmail,
+            $toName,
+            $otp,
+            bugcatcher_password_reset_ttl_seconds()
+        )
     );
-    $textBody = sprintf(
-        "You requested a password reset for %s.\n\nYour 6-digit reset code is: %s\n\nThis code expires in %d minutes.\n\nIf you did not request this, you can ignore this email.",
-        $appName,
-        $otp,
-        (int) ceil(bugcatcher_password_reset_ttl_seconds() / 60)
-    );
+}
 
-    bugcatcher_mail_send(
-        $toEmail,
-        $toName,
-        $appName . ' password reset code',
-        $htmlBody,
-        $textBody
-    );
+function bugcatcher_password_reset_should_bypass_cooldown_for_preview(?array $request, string $email): bool
+{
+    if (!$request || !bugcatcher_password_reset_dev_preview_enabled()) {
+        return false;
+    }
+
+    return bugcatcher_password_reset_cooldown_remaining($request) > 0 &&
+        bugcatcher_password_reset_dev_preview_otp($email) === '';
 }
 
 function bugcatcher_password_reset_generic_sent_message(bool $resent = false, int $cooldownRemaining = 0): string
@@ -292,7 +336,7 @@ function bugcatcher_password_reset_request_otp(mysqli $conn, string $email): arr
 
     $latest = bugcatcher_password_reset_find_latest_request($conn, (int) $user['id']);
     $cooldownRemaining = bugcatcher_password_reset_cooldown_remaining($latest);
-    if ($cooldownRemaining > 0) {
+    if ($cooldownRemaining > 0 && !bugcatcher_password_reset_should_bypass_cooldown_for_preview($latest, $email)) {
         return [
             'ok' => true,
             'message' => bugcatcher_password_reset_generic_sent_message(false, $cooldownRemaining),
@@ -326,12 +370,16 @@ function bugcatcher_password_reset_request_otp(mysqli $conn, string $email): arr
         return ['ok' => false, 'error' => 'Unable to start the password reset right now.'];
     }
 
-    try {
-        bugcatcher_password_reset_send_email((string) $user['email'], (string) $user['username'], $otp);
-    } catch (RuntimeException $e) {
-        bugcatcher_password_reset_mark_request_used($conn, $requestId);
-        bugcatcher_password_reset_clear_state();
-        return ['ok' => false, 'error' => 'Password reset email could not be sent right now.'];
+    bugcatcher_mail_preview_clear('password_reset_otp', (string) $user['email']);
+
+    if ($mailError === null) {
+        try {
+            bugcatcher_password_reset_send_email((string) $user['email'], (string) $user['username'], $otp);
+        } catch (RuntimeException $e) {
+            bugcatcher_password_reset_mark_request_used($conn, $requestId);
+            bugcatcher_password_reset_clear_state();
+            return ['ok' => false, 'error' => 'Password reset email could not be sent right now.'];
+        }
     }
 
     return ['ok' => true, 'message' => bugcatcher_password_reset_generic_sent_message()];
@@ -362,7 +410,7 @@ function bugcatcher_password_reset_resend_otp(mysqli $conn, string $email): arra
     }
 
     $cooldownRemaining = bugcatcher_password_reset_cooldown_remaining($request);
-    if ($cooldownRemaining > 0) {
+    if ($cooldownRemaining > 0 && !bugcatcher_password_reset_should_bypass_cooldown_for_preview($request, $email)) {
         return [
             'ok' => true,
             'message' => bugcatcher_password_reset_generic_sent_message(true, $cooldownRemaining),
@@ -394,12 +442,16 @@ function bugcatcher_password_reset_resend_otp(mysqli $conn, string $email): arra
     $stmt->execute();
     $stmt->close();
 
-    try {
-        bugcatcher_password_reset_send_email((string) $user['email'], (string) $user['username'], $otp);
-    } catch (RuntimeException $e) {
-        bugcatcher_password_reset_mark_request_used($conn, $requestId);
-        bugcatcher_password_reset_clear_state();
-        return ['ok' => false, 'error' => 'Password reset email could not be sent right now.'];
+    bugcatcher_mail_preview_clear('password_reset_otp', (string) $user['email']);
+
+    if ($mailError === null) {
+        try {
+            bugcatcher_password_reset_send_email((string) $user['email'], (string) $user['username'], $otp);
+        } catch (RuntimeException $e) {
+            bugcatcher_password_reset_mark_request_used($conn, $requestId);
+            bugcatcher_password_reset_clear_state();
+            return ['ok' => false, 'error' => 'Password reset email could not be sent right now.'];
+        }
     }
 
     return ['ok' => true, 'message' => bugcatcher_password_reset_generic_sent_message(true)];

@@ -360,6 +360,15 @@ input[type="submit"].button {
     text-transform: none;
 }
 
+.auth-dev-otp {
+    margin-top: 10px;
+    font-size: 24px;
+    font-weight: 700;
+    letter-spacing: 6px;
+    color: #2B547E;
+    font-family: 'Poppins', sans-serif;
+}
+
 .page-back-link {
     display: block;
     text-align: center;
