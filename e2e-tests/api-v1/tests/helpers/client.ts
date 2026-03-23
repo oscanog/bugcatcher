@@ -7,7 +7,7 @@ export type ApiEnvelope<T> =
 export type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };
 
 export async function parseJson<T>(res: APIResponse): Promise<T> {
-  const text = await res.text();
+  const text = (await res.text()).replace(/^\uFEFF/, "");
   try {
     return JSON.parse(text) as T;
   } catch {

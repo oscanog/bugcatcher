@@ -59,6 +59,20 @@ function bc_v1_projects_post(mysqli $conn, array $params): void
     }
 
     $project = bugcatcher_checklist_fetch_project($conn, (int) $org['org_id'], $projectId);
+    bugcatcher_notifications_send($conn, array_values(array_diff(
+        bugcatcher_notification_org_manager_ids($conn, (int) $org['org_id']),
+        [(int) $org['user_id']]
+    )), [
+        'type' => 'project',
+        'event_key' => 'project_created',
+        'title' => 'Project created',
+        'body' => $name . ' was added to ' . $org['org_name'] . '.',
+        'severity' => 'success',
+        'link_path' => '/app/projects/' . $projectId,
+        'actor_user_id' => (int) $org['user_id'],
+        'org_id' => (int) $org['org_id'],
+        'project_id' => $projectId,
+    ]);
     bc_v1_json_success(['project' => $project], 201);
 }
 
@@ -122,6 +136,20 @@ function bc_v1_projects_id_patch(mysqli $conn, array $params): void
     }
 
     $updated = bugcatcher_checklist_fetch_project($conn, (int) $org['org_id'], $projectId);
+    bugcatcher_notifications_send($conn, array_values(array_diff(
+        bugcatcher_notification_org_manager_ids($conn, (int) $org['org_id']),
+        [(int) $org['user_id']]
+    )), [
+        'type' => 'project',
+        'event_key' => 'project_updated',
+        'title' => 'Project updated',
+        'body' => $name . ' was updated.',
+        'severity' => 'default',
+        'link_path' => '/app/projects/' . $projectId,
+        'actor_user_id' => (int) $org['user_id'],
+        'org_id' => (int) $org['org_id'],
+        'project_id' => $projectId,
+    ]);
     bc_v1_json_success(['project' => $updated]);
 }
 
@@ -146,6 +174,21 @@ function bc_v1_projects_status_post(mysqli $conn, array $params, string $nextSta
     $stmt->bind_param('siii', $nextStatus, $org['user_id'], $projectId, $org['org_id']);
     $stmt->execute();
     $stmt->close();
+
+    bugcatcher_notifications_send($conn, array_values(array_diff(
+        bugcatcher_notification_org_manager_ids($conn, (int) $org['org_id']),
+        [(int) $org['user_id']]
+    )), [
+        'type' => 'project',
+        'event_key' => $nextStatus === 'archived' ? 'project_archived' : 'project_activated',
+        'title' => $nextStatus === 'archived' ? 'Project archived' : 'Project activated',
+        'body' => 'Project #' . $projectId . ' is now ' . $nextStatus . '.',
+        'severity' => $nextStatus === 'archived' ? 'alert' : 'success',
+        'link_path' => '/app/projects/' . $projectId,
+        'actor_user_id' => (int) $org['user_id'],
+        'org_id' => (int) $org['org_id'],
+        'project_id' => $projectId,
+    ]);
 
     bc_v1_json_success(['project_id' => $projectId, 'status' => $nextStatus]);
 }

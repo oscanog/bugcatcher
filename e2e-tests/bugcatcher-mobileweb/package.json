@@ -1,0 +1,11 @@
+{
+  "name": "bugcatcher-mobileweb-e2e",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Dedicated Playwright E2E suite for BugCatcher mobile web role, guard, and notification flows",
+  "scripts": {
+    "test": "node ../api-v1/node_modules/@playwright/test/cli.js test",
+    "test:local": "node ../api-v1/node_modules/@playwright/test/cli.js test",
+    "test:headed": "node ../api-v1/node_modules/@playwright/test/cli.js test --headed"
+  }
+}

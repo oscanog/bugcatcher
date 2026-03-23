@@ -1,5 +1,7 @@
 <?php
 
+require_once __DIR__ . '/notification_lib.php';
+
 function checklist_api_json_response(int $statusCode, array $data): void
 {
     http_response_code($statusCode);
@@ -126,6 +128,29 @@ function checklist_api_require_manager(array $context): void
     if (!bugcatcher_checklist_is_manager_role((string) $context['org_role'])) {
         checklist_api_json_error(403, 'forbidden', 'Only checklist managers can perform this action.');
     }
+}
+
+function checklist_api_batch_link_path(int $batchId): string
+{
+    return '/app/checklist/batches/' . $batchId;
+}
+
+function checklist_api_notify_batch(mysqli $conn, array $batch, array $payload, array $recipientUserIds): void
+{
+    bugcatcher_notifications_send($conn, $recipientUserIds, [
+        'type' => 'checklist',
+        'event_key' => (string) ($payload['event_key'] ?? 'checklist_updated'),
+        'title' => (string) ($payload['title'] ?? 'Checklist updated'),
+        'body' => (string) ($payload['body'] ?? ''),
+        'severity' => (string) ($payload['severity'] ?? 'default'),
+        'link_path' => checklist_api_batch_link_path((int) $batch['id']),
+        'actor_user_id' => (int) ($payload['actor_user_id'] ?? 0),
+        'org_id' => (int) ($batch['org_id'] ?? 0),
+        'project_id' => (int) ($batch['project_id'] ?? 0),
+        'checklist_batch_id' => (int) ($batch['id'] ?? 0),
+        'checklist_item_id' => max(0, (int) ($payload['checklist_item_id'] ?? 0)),
+        'meta' => $payload['meta'] ?? null,
+    ]);
 }
 
 function checklist_api_find_batch_or_404(mysqli $conn, int $orgId, int $batchId): array
@@ -259,7 +284,18 @@ function checklist_api_create_batch(mysqli $conn, array $context, array $payload
     $batchId = (int) $conn->insert_id;
     $stmt->close();
 
-    return checklist_api_find_batch_or_404($conn, (int) $context['org_id'], $batchId);
+    $batch = checklist_api_find_batch_or_404($conn, (int) $context['org_id'], $batchId);
+    checklist_api_notify_batch($conn, $batch, [
+        'event_key' => 'checklist_batch_created',
+        'title' => 'Checklist batch created',
+        'body' => (string) $batch['title'],
+        'severity' => 'success',
+        'actor_user_id' => (int) $context['current_user_id'],
+    ], array_values(array_diff(
+        bugcatcher_notification_org_manager_ids($conn, (int) $context['org_id']),
+        [(int) $context['current_user_id']]
+    )));
+    return $batch;
 }
 
 function checklist_api_update_batch(mysqli $conn, array $context, int $batchId, array $payload): array
@@ -289,7 +325,18 @@ function checklist_api_update_batch(mysqli $conn, array $context, int $batchId, 
     $stmt->execute();
     $stmt->close();
 
-    return checklist_api_find_batch_or_404($conn, (int) $context['org_id'], $batchId);
+    $batch = checklist_api_find_batch_or_404($conn, (int) $context['org_id'], $batchId);
+    checklist_api_notify_batch($conn, $batch, [
+        'event_key' => 'checklist_batch_updated',
+        'title' => 'Checklist batch updated',
+        'body' => (string) $batch['title'],
+        'severity' => 'default',
+        'actor_user_id' => (int) $context['current_user_id'],
+    ], array_values(array_diff(
+        bugcatcher_notification_org_manager_ids($conn, (int) $context['org_id']),
+        [(int) $context['current_user_id']]
+    )));
+    return $batch;
 }
 
 function checklist_api_validate_item_payload(mysqli $conn, array $context, array $batch, array $payload, bool $isCreate): array
@@ -385,7 +432,20 @@ function checklist_api_create_item(mysqli $conn, array $context, array $payload)
         throw $e;
     }
 
-    return checklist_api_find_item_or_404($conn, (int) $context['org_id'], $itemId);
+    $item = checklist_api_find_item_or_404($conn, (int) $context['org_id'], $itemId);
+    $batch = checklist_api_find_batch_or_404($conn, (int) $context['org_id'], (int) $item['batch_id']);
+    checklist_api_notify_batch($conn, $batch, [
+        'event_key' => 'checklist_item_created',
+        'title' => 'Checklist item created',
+        'body' => (string) $item['title'],
+        'severity' => 'default',
+        'actor_user_id' => (int) $context['current_user_id'],
+        'checklist_item_id' => (int) $item['id'],
+    ], array_filter([
+        (int) ($item['assigned_to_user_id'] ?? 0),
+        ...bugcatcher_notification_org_manager_ids($conn, (int) $context['org_id']),
+    ]));
+    return $item;
 }
 
 function checklist_api_update_item(mysqli $conn, array $context, int $itemId, array $payload): array
@@ -439,7 +499,20 @@ function checklist_api_update_item(mysqli $conn, array $context, int $itemId, ar
 
     $updated = checklist_api_find_item_or_404($conn, (int) $context['org_id'], $itemId);
     checklist_api_auto_create_issue_if_needed($conn, $context, $updated);
-    return checklist_api_find_item_or_404($conn, (int) $context['org_id'], $itemId);
+    $updated = checklist_api_find_item_or_404($conn, (int) $context['org_id'], $itemId);
+    $batch = checklist_api_find_batch_or_404($conn, (int) $context['org_id'], (int) $updated['batch_id']);
+    checklist_api_notify_batch($conn, $batch, [
+        'event_key' => 'checklist_item_updated',
+        'title' => 'Checklist item updated',
+        'body' => (string) $updated['title'],
+        'severity' => 'default',
+        'actor_user_id' => (int) $context['current_user_id'],
+        'checklist_item_id' => (int) $updated['id'],
+    ], array_filter([
+        (int) ($updated['assigned_to_user_id'] ?? 0),
+        ...bugcatcher_notification_org_manager_ids($conn, (int) $context['org_id']),
+    ]));
+    return $updated;
 }
 
 function checklist_api_auto_create_issue_if_needed(mysqli $conn, array $context, array $item): void
@@ -511,7 +584,22 @@ function checklist_api_change_item_status(mysqli $conn, array $context, int $ite
 
     $updated = checklist_api_find_item_or_404($conn, (int) $context['org_id'], $itemId);
     checklist_api_auto_create_issue_if_needed($conn, $context, $updated);
-    return checklist_api_find_item_or_404($conn, (int) $context['org_id'], $itemId);
+    $updated = checklist_api_find_item_or_404($conn, (int) $context['org_id'], $itemId);
+    $batch = checklist_api_find_batch_or_404($conn, (int) $context['org_id'], (int) $updated['batch_id']);
+    $severity = in_array((string) $updated['status'], ['failed', 'blocked'], true) ? 'alert' : ((string) $updated['status'] === 'passed' ? 'success' : 'default');
+    checklist_api_notify_batch($conn, $batch, [
+        'event_key' => 'checklist_item_status_changed',
+        'title' => 'Checklist item status updated',
+        'body' => (string) $updated['title'] . ' is now ' . (string) $updated['status'] . '.',
+        'severity' => $severity,
+        'actor_user_id' => (int) $context['current_user_id'],
+        'checklist_item_id' => (int) $updated['id'],
+        'meta' => ['status' => (string) $updated['status']],
+    ], array_filter([
+        (int) ($updated['assigned_to_user_id'] ?? 0),
+        ...bugcatcher_notification_org_manager_ids($conn, (int) $context['org_id']),
+    ]));
+    return $updated;
 }
 
 function checklist_api_delete_item(mysqli $conn, int $orgId, int $itemId): void

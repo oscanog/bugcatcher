@@ -264,6 +264,55 @@ function bc_v1_issue_hydrated_by_id(mysqli $conn, int $orgId, int $issueId): arr
     return bc_v1_issue_shape($row, $labelsMap[$issueId] ?? [], $attachmentsMap[$issueId] ?? []);
 }
 
+function bc_v1_issue_link_path(int $issueId): string
+{
+    return '/app/reports/' . $issueId;
+}
+
+function bc_v1_issue_is_visible_to_actor(array $issue, array $org, int $userId): bool
+{
+    $scope = bc_v1_issue_visibility_scope($org);
+    if (in_array($scope, ['admin', 'owner', 'pm'], true)) {
+        return true;
+    }
+    if ($scope === 'senior') {
+        return (int) ($issue['assigned_dev_id'] ?? 0) === $userId;
+    }
+    if ($scope === 'junior') {
+        return (int) ($issue['assigned_junior_id'] ?? 0) === $userId;
+    }
+    if ($scope === 'qa') {
+        return (int) ($issue['assigned_qa_id'] ?? 0) === $userId;
+    }
+    if ($scope === 'senior_qa') {
+        return (int) ($issue['assigned_senior_qa_id'] ?? 0) === $userId;
+    }
+    if ($scope === 'qa_lead') {
+        return (int) ($issue['assigned_qa_lead_id'] ?? 0) === $userId;
+    }
+
+    return (int) ($issue['author_id'] ?? 0) === $userId;
+}
+
+function bc_v1_issue_notify(mysqli $conn, array $issue, array $payload, array $recipientUserIds): void
+{
+    bugcatcher_notifications_send($conn, $recipientUserIds, [
+        'type' => 'issue',
+        'event_key' => (string) ($payload['event_key'] ?? 'issue_updated'),
+        'title' => (string) ($payload['title'] ?? 'Issue updated'),
+        'body' => (string) ($payload['body'] ?? ''),
+        'severity' => (string) ($payload['severity'] ?? 'default'),
+        'link_path' => bc_v1_issue_link_path((int) $issue['id']),
+        'actor_user_id' => (int) ($payload['actor_user_id'] ?? 0),
+        'org_id' => (int) ($issue['org_id'] ?? 0),
+        'issue_id' => (int) ($issue['id'] ?? 0),
+        'meta' => $payload['meta'] ?? [
+            'assign_status' => (string) ($issue['assign_status'] ?? ''),
+            'status' => (string) ($issue['status'] ?? ''),
+        ],
+    ]);
+}
+
 function bc_v1_issues_get(mysqli $conn, array $params): void
 {
     bc_v1_require_method(['GET']);
@@ -363,15 +412,36 @@ function bc_v1_issues_get(mysqli $conn, array $params): void
     ]);
 }
 
+function bc_v1_issues_id_get(mysqli $conn, array $params): void
+{
+    bc_v1_require_method(['GET']);
+    $actor = bc_v1_actor($conn, true);
+    $issueId = ctype_digit((string) ($params['id'] ?? '')) ? (int) $params['id'] : 0;
+    if ($issueId <= 0) {
+        bc_v1_json_error(422, 'invalid_issue', 'Issue id is invalid.');
+    }
+
+    $org = bc_v1_org_context($conn, $actor, bc_v1_get_int($_GET, 'org_id', 0));
+    $issue = bc_v1_issue_fetch($conn, (int) $org['org_id'], $issueId);
+    if (!$issue) {
+        bc_v1_json_error(404, 'issue_not_found', 'Issue not found in this organization.');
+    }
+    if (!bc_v1_issue_is_visible_to_actor($issue, $org, (int) $actor['user']['id'])) {
+        bc_v1_json_error(403, 'forbidden', 'You do not have access to this issue.');
+    }
+
+    bc_v1_json_success([
+        'org' => $org,
+        'issue' => bc_v1_issue_hydrated_by_id($conn, (int) $org['org_id'], $issueId),
+    ]);
+}
+
 function bc_v1_issues_post(mysqli $conn, array $params): void
 {
     bc_v1_require_method(['POST']);
     $actor = bc_v1_actor($conn, true);
     $payload = bc_v1_request_data();
     $org = bc_v1_org_context($conn, $actor, bc_v1_get_int($payload, 'org_id', 0));
-    if ((string) $org['org_role'] !== 'Project Manager') {
-        bc_v1_json_error(403, 'forbidden', 'Only Project Managers can create issues.');
-    }
 
     $title = trim((string) ($payload['title'] ?? ''));
     $description = trim((string) ($payload['description'] ?? ''));
@@ -471,8 +541,21 @@ function bc_v1_issues_post(mysqli $conn, array $params): void
         bc_v1_json_error(500, 'issue_create_failed', 'Failed to create issue.', $e->getMessage());
     }
 
+    $hydratedIssue = bc_v1_issue_hydrated_by_id($conn, (int) $org['org_id'], $issueId);
+    $managerRecipients = array_values(array_diff(
+        bugcatcher_notification_org_manager_ids($conn, (int) $org['org_id']),
+        [(int) $org['user_id']]
+    ));
+    bc_v1_issue_notify($conn, $hydratedIssue, [
+        'event_key' => 'issue_created',
+        'title' => 'New issue created',
+        'body' => $title . ' needs review in ' . ((string) ($org['org_name'] ?? 'your organization')) . '.',
+        'severity' => 'alert',
+        'actor_user_id' => (int) $org['user_id'],
+    ], $managerRecipients);
+
     bc_v1_json_success([
-        'issue' => bc_v1_issue_hydrated_by_id($conn, (int) $org['org_id'], $issueId),
+        'issue' => $hydratedIssue,
     ], 201);
 }
 
@@ -634,8 +717,17 @@ function bc_v1_issues_assign_dev_post(mysqli $conn, array $params): void
         bc_v1_json_error(409, 'assign_failed', 'Failed to assign issue to Senior Developer.');
     }
 
+    $updatedIssue = bc_v1_issue_hydrated_by_id($conn, (int) $ctx['org']['org_id'], $ctx['issue_id']);
+    bc_v1_issue_notify($conn, $updatedIssue, [
+        'event_key' => 'issue_assigned_dev',
+        'title' => 'Issue assigned to Senior Developer',
+        'body' => $updatedIssue['title'] . ' is now assigned to you.',
+        'severity' => 'alert',
+        'actor_user_id' => (int) $ctx['user_id'],
+    ], [$devId, (int) ($updatedIssue['author_id'] ?? 0)]);
+
     bc_v1_json_success([
-        'issue' => bc_v1_issue_hydrated_by_id($conn, (int) $ctx['org']['org_id'], $ctx['issue_id']),
+        'issue' => $updatedIssue,
     ]);
 }
 
@@ -673,8 +765,17 @@ function bc_v1_issues_assign_junior_post(mysqli $conn, array $params): void
         bc_v1_json_error(409, 'assign_failed', 'Failed to assign Junior Developer.');
     }
 
+    $updatedIssue = bc_v1_issue_hydrated_by_id($conn, (int) $ctx['org']['org_id'], $ctx['issue_id']);
+    bc_v1_issue_notify($conn, $updatedIssue, [
+        'event_key' => 'issue_assigned_junior',
+        'title' => 'Issue assigned to Junior Developer',
+        'body' => $updatedIssue['title'] . ' is ready for your implementation.',
+        'severity' => 'alert',
+        'actor_user_id' => (int) $ctx['user_id'],
+    ], [$juniorId, (int) ($updatedIssue['author_id'] ?? 0)]);
+
     bc_v1_json_success([
-        'issue' => bc_v1_issue_hydrated_by_id($conn, (int) $ctx['org']['org_id'], $ctx['issue_id']),
+        'issue' => $updatedIssue,
     ]);
 }
 
@@ -707,8 +808,17 @@ function bc_v1_issues_junior_done_post(mysqli $conn, array $params): void
         bc_v1_json_error(409, 'update_failed', 'Failed to mark issue as done by Junior Developer.');
     }
 
+    $updatedIssue = bc_v1_issue_hydrated_by_id($conn, (int) $ctx['org']['org_id'], $ctx['issue_id']);
+    bc_v1_issue_notify($conn, $updatedIssue, [
+        'event_key' => 'issue_done_by_junior',
+        'title' => 'Junior Developer marked issue done',
+        'body' => $updatedIssue['title'] . ' is ready for QA assignment.',
+        'severity' => 'success',
+        'actor_user_id' => (int) $ctx['user_id'],
+    ], [(int) ($updatedIssue['assigned_dev_id'] ?? 0), (int) ($updatedIssue['author_id'] ?? 0)]);
+
     bc_v1_json_success([
-        'issue' => bc_v1_issue_hydrated_by_id($conn, (int) $ctx['org']['org_id'], $ctx['issue_id']),
+        'issue' => $updatedIssue,
     ]);
 }
 
@@ -752,8 +862,17 @@ function bc_v1_issues_assign_qa_post(mysqli $conn, array $params): void
         bc_v1_json_error(409, 'assign_failed', 'Failed to assign QA Tester.');
     }
 
+    $updatedIssue = bc_v1_issue_hydrated_by_id($conn, (int) $ctx['org']['org_id'], $ctx['issue_id']);
+    bc_v1_issue_notify($conn, $updatedIssue, [
+        'event_key' => 'issue_assigned_qa',
+        'title' => 'Issue assigned to QA Tester',
+        'body' => $updatedIssue['title'] . ' is ready for verification.',
+        'severity' => 'alert',
+        'actor_user_id' => (int) $ctx['user_id'],
+    ], [$qaId, (int) ($updatedIssue['author_id'] ?? 0)]);
+
     bc_v1_json_success([
-        'issue' => bc_v1_issue_hydrated_by_id($conn, (int) $ctx['org']['org_id'], $ctx['issue_id']),
+        'issue' => $updatedIssue,
     ]);
 }
 
@@ -797,8 +916,17 @@ function bc_v1_issues_report_senior_qa_post(mysqli $conn, array $params): void
         bc_v1_json_error(409, 'assign_failed', 'Failed to report issue to Senior QA.');
     }
 
+    $updatedIssue = bc_v1_issue_hydrated_by_id($conn, (int) $ctx['org']['org_id'], $ctx['issue_id']);
+    bc_v1_issue_notify($conn, $updatedIssue, [
+        'event_key' => 'issue_reported_senior_qa',
+        'title' => 'Issue reported to Senior QA',
+        'body' => $updatedIssue['title'] . ' is waiting for your review.',
+        'severity' => 'alert',
+        'actor_user_id' => (int) $ctx['user_id'],
+    ], [$seniorQaId, (int) ($updatedIssue['author_id'] ?? 0)]);
+
     bc_v1_json_success([
-        'issue' => bc_v1_issue_hydrated_by_id($conn, (int) $ctx['org']['org_id'], $ctx['issue_id']),
+        'issue' => $updatedIssue,
     ]);
 }
 
@@ -842,8 +970,17 @@ function bc_v1_issues_report_qa_lead_post(mysqli $conn, array $params): void
         bc_v1_json_error(409, 'assign_failed', 'Failed to report issue to QA Lead.');
     }
 
+    $updatedIssue = bc_v1_issue_hydrated_by_id($conn, (int) $ctx['org']['org_id'], $ctx['issue_id']);
+    bc_v1_issue_notify($conn, $updatedIssue, [
+        'event_key' => 'issue_reported_qa_lead',
+        'title' => 'Issue reported to QA Lead',
+        'body' => $updatedIssue['title'] . ' needs your approval.',
+        'severity' => 'alert',
+        'actor_user_id' => (int) $ctx['user_id'],
+    ], [$qaLeadId, (int) ($updatedIssue['author_id'] ?? 0)]);
+
     bc_v1_json_success([
-        'issue' => bc_v1_issue_hydrated_by_id($conn, (int) $ctx['org']['org_id'], $ctx['issue_id']),
+        'issue' => $updatedIssue,
     ]);
 }
 
@@ -876,8 +1013,17 @@ function bc_v1_issues_qa_lead_approve_post(mysqli $conn, array $params): void
         bc_v1_json_error(409, 'approve_failed', 'Failed to approve issue.');
     }
 
+    $updatedIssue = bc_v1_issue_hydrated_by_id($conn, (int) $ctx['org']['org_id'], $ctx['issue_id']);
+    bc_v1_issue_notify($conn, $updatedIssue, [
+        'event_key' => 'issue_approved',
+        'title' => 'Issue approved by QA Lead',
+        'body' => $updatedIssue['title'] . ' is ready for Project Manager closure.',
+        'severity' => 'success',
+        'actor_user_id' => (int) $ctx['user_id'],
+    ], [(int) ($updatedIssue['pm_id'] ?? 0), (int) ($updatedIssue['author_id'] ?? 0)]);
+
     bc_v1_json_success([
-        'issue' => bc_v1_issue_hydrated_by_id($conn, (int) $ctx['org']['org_id'], $ctx['issue_id']),
+        'issue' => $updatedIssue,
     ]);
 }
 
@@ -921,8 +1067,17 @@ function bc_v1_issues_qa_lead_reject_post(mysqli $conn, array $params): void
         bc_v1_json_error(409, 'reject_failed', 'Failed to reject issue.');
     }
 
+    $updatedIssue = bc_v1_issue_hydrated_by_id($conn, (int) $ctx['org']['org_id'], $ctx['issue_id']);
+    bc_v1_issue_notify($conn, $updatedIssue, [
+        'event_key' => 'issue_rejected',
+        'title' => 'Issue rejected by QA Lead',
+        'body' => $updatedIssue['title'] . ' needs reassignment.',
+        'severity' => 'alert',
+        'actor_user_id' => (int) $ctx['user_id'],
+    ], [(int) ($updatedIssue['pm_id'] ?? 0), (int) ($updatedIssue['author_id'] ?? 0)]);
+
     bc_v1_json_success([
-        'issue' => bc_v1_issue_hydrated_by_id($conn, (int) $ctx['org']['org_id'], $ctx['issue_id']),
+        'issue' => $updatedIssue,
     ]);
 }
 
@@ -952,7 +1107,16 @@ function bc_v1_issues_pm_close_post(mysqli $conn, array $params): void
         bc_v1_json_error(409, 'close_failed', 'Failed to close issue.');
     }
 
+    $updatedIssue = bc_v1_issue_hydrated_by_id($conn, (int) $ctx['org']['org_id'], $ctx['issue_id']);
+    bc_v1_issue_notify($conn, $updatedIssue, [
+        'event_key' => 'issue_closed',
+        'title' => 'Issue closed',
+        'body' => $updatedIssue['title'] . ' has been closed.',
+        'severity' => 'success',
+        'actor_user_id' => (int) $ctx['user_id'],
+    ], [(int) ($updatedIssue['author_id'] ?? 0)]);
+
     bc_v1_json_success([
-        'issue' => bc_v1_issue_hydrated_by_id($conn, (int) $ctx['org']['org_id'], $ctx['issue_id']),
+        'issue' => $updatedIssue,
     ]);
 }

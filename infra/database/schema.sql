@@ -349,6 +349,45 @@ CREATE TABLE IF NOT EXISTS openclaw_runtime_config (
     ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
+CREATE TABLE IF NOT EXISTS openclaw_control_plane_state (
+  id INT(11) NOT NULL,
+  config_version VARCHAR(60) NOT NULL,
+  last_runtime_reload_requested_at DATETIME DEFAULT NULL,
+  last_runtime_reload_requested_by INT(11) DEFAULT NULL,
+  last_runtime_reload_reason VARCHAR(120) DEFAULT NULL,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  CONSTRAINT fk_openclaw_control_plane_requested_by
+    FOREIGN KEY (last_runtime_reload_requested_by) REFERENCES users(id)
+    ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+CREATE TABLE IF NOT EXISTS openclaw_runtime_status (
+  id INT(11) NOT NULL,
+  gateway_state VARCHAR(40) NOT NULL DEFAULT 'unknown',
+  discord_state VARCHAR(40) NOT NULL DEFAULT 'unknown',
+  heartbeat_at DATETIME DEFAULT NULL,
+  last_reload_at DATETIME DEFAULT NULL,
+  last_error_message TEXT DEFAULT NULL,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+CREATE TABLE IF NOT EXISTS openclaw_reload_requests (
+  id INT(11) NOT NULL AUTO_INCREMENT,
+  requested_by_user_id INT(11) DEFAULT NULL,
+  reason VARCHAR(120) DEFAULT NULL,
+  status ENUM('pending', 'processing', 'completed', 'failed') NOT NULL DEFAULT 'pending',
+  requested_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  processed_at DATETIME DEFAULT NULL,
+  error_message TEXT DEFAULT NULL,
+  PRIMARY KEY (id),
+  KEY idx_openclaw_reload_requests_status (status, requested_at),
+  CONSTRAINT fk_openclaw_reload_requests_requested_by
+    FOREIGN KEY (requested_by_user_id) REFERENCES users(id)
+    ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
 CREATE TABLE IF NOT EXISTS ai_provider_configs (
   id INT(11) NOT NULL AUTO_INCREMENT,
   provider_key VARCHAR(60) NOT NULL,
@@ -502,6 +541,53 @@ CREATE TABLE IF NOT EXISTS issue_attachments (
   CONSTRAINT fk_issue_attachments_issue
     FOREIGN KEY (issue_id) REFERENCES issues(id)
     ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+CREATE TABLE IF NOT EXISTS notifications (
+  id INT(11) NOT NULL AUTO_INCREMENT,
+  recipient_user_id INT(11) NOT NULL,
+  actor_user_id INT(11) DEFAULT NULL,
+  org_id INT(11) DEFAULT NULL,
+  project_id INT(11) DEFAULT NULL,
+  issue_id INT(11) DEFAULT NULL,
+  checklist_batch_id INT(11) DEFAULT NULL,
+  checklist_item_id INT(11) DEFAULT NULL,
+  type ENUM('issue', 'org', 'project', 'checklist', 'system') NOT NULL DEFAULT 'system',
+  event_key VARCHAR(80) NOT NULL,
+  title VARCHAR(255) NOT NULL,
+  body TEXT DEFAULT NULL,
+  link_path VARCHAR(255) NOT NULL,
+  severity ENUM('default', 'success', 'alert') NOT NULL DEFAULT 'default',
+  meta_json LONGTEXT DEFAULT NULL,
+  read_at DATETIME DEFAULT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY idx_notifications_recipient_read (recipient_user_id, read_at, created_at),
+  KEY idx_notifications_org (org_id, created_at),
+  KEY idx_notifications_project (project_id, created_at),
+  KEY idx_notifications_issue (issue_id, created_at),
+  KEY idx_notifications_batch (checklist_batch_id, created_at),
+  CONSTRAINT fk_notifications_recipient
+    FOREIGN KEY (recipient_user_id) REFERENCES users(id)
+    ON DELETE CASCADE,
+  CONSTRAINT fk_notifications_actor
+    FOREIGN KEY (actor_user_id) REFERENCES users(id)
+    ON DELETE SET NULL,
+  CONSTRAINT fk_notifications_org
+    FOREIGN KEY (org_id) REFERENCES organizations(id)
+    ON DELETE SET NULL,
+  CONSTRAINT fk_notifications_project
+    FOREIGN KEY (project_id) REFERENCES projects(id)
+    ON DELETE SET NULL,
+  CONSTRAINT fk_notifications_issue
+    FOREIGN KEY (issue_id) REFERENCES issues(id)
+    ON DELETE SET NULL,
+  CONSTRAINT fk_notifications_batch
+    FOREIGN KEY (checklist_batch_id) REFERENCES checklist_batches(id)
+    ON DELETE SET NULL,
+  CONSTRAINT fk_notifications_item
+    FOREIGN KEY (checklist_item_id) REFERENCES checklist_items(id)
+    ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 CREATE TABLE IF NOT EXISTS contact (

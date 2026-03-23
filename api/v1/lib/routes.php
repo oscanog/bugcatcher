@@ -7,6 +7,8 @@ require_once __DIR__ . '/orgs.php';
 require_once __DIR__ . '/projects.php';
 require_once __DIR__ . '/discord.php';
 require_once __DIR__ . '/issues.php';
+require_once __DIR__ . '/dashboard.php';
+require_once __DIR__ . '/notifications.php';
 require_once __DIR__ . '/admin_openclaw.php';
 require_once __DIR__ . '/aliases.php';
 
@@ -34,9 +36,11 @@ function bc_v1_routes(): array
         ['method' => 'POST', 'pattern' => '/auth/forgot/verify-otp', 'handler' => 'bc_v1_auth_forgot_verify_otp'],
         ['method' => 'POST', 'pattern' => '/auth/forgot/reset-password', 'handler' => 'bc_v1_auth_forgot_reset_password'],
         ['method' => 'PUT', 'pattern' => '/session/active-org', 'handler' => 'bc_v1_session_active_org_put'],
+        ['method' => 'GET', 'pattern' => '/dashboard/summary', 'handler' => 'bc_v1_dashboard_summary_get'],
 
         ['method' => 'GET', 'pattern' => '/orgs', 'handler' => 'bc_v1_orgs_get'],
         ['method' => 'POST', 'pattern' => '/orgs', 'handler' => 'bc_v1_orgs_post'],
+        ['method' => 'GET', 'pattern' => '/orgs/{id}/members', 'handler' => 'bc_v1_orgs_members_get'],
         ['method' => 'POST', 'pattern' => '/orgs/{id}/join', 'handler' => 'bc_v1_orgs_join_post'],
         ['method' => 'POST', 'pattern' => '/orgs/{id}/leave', 'handler' => 'bc_v1_orgs_leave_post'],
         ['method' => 'POST', 'pattern' => '/orgs/{id}/transfer-owner', 'handler' => 'bc_v1_orgs_transfer_owner_post'],
@@ -46,6 +50,7 @@ function bc_v1_routes(): array
 
         ['method' => 'GET', 'pattern' => '/issues', 'handler' => 'bc_v1_issues_get'],
         ['method' => 'POST', 'pattern' => '/issues', 'handler' => 'bc_v1_issues_post'],
+        ['method' => 'GET', 'pattern' => '/issues/{id}', 'handler' => 'bc_v1_issues_id_get'],
         ['method' => 'DELETE', 'pattern' => '/issues/{id}', 'handler' => 'bc_v1_issues_delete'],
         ['method' => 'POST', 'pattern' => '/issues/{id}/assign-dev', 'handler' => 'bc_v1_issues_assign_dev_post'],
         ['method' => 'POST', 'pattern' => '/issues/{id}/assign-junior', 'handler' => 'bc_v1_issues_assign_junior_post'],
@@ -71,6 +76,9 @@ function bc_v1_routes(): array
         ['method' => 'GET', 'pattern' => '/discord/link', 'handler' => 'bc_v1_discord_link_get'],
         ['method' => 'POST', 'pattern' => '/discord/link-code', 'handler' => 'bc_v1_discord_link_code_post'],
         ['method' => 'DELETE', 'pattern' => '/discord/link', 'handler' => 'bc_v1_discord_link_delete'],
+        ['method' => 'GET', 'pattern' => '/notifications', 'handler' => 'bc_v1_notifications_get'],
+        ['method' => 'POST', 'pattern' => '/notifications/read-all', 'handler' => 'bc_v1_notifications_read_all_post'],
+        ['method' => 'POST', 'pattern' => '/notifications/{id}/read', 'handler' => 'bc_v1_notifications_read_post'],
 
         ['method' => 'ANY', 'pattern' => '/checklist/batches', 'handler' => 'bc_v1_alias_checklist_batches'],
         ['method' => 'ANY', 'pattern' => '/checklist/batch', 'handler' => 'bc_v1_alias_checklist_batch'],

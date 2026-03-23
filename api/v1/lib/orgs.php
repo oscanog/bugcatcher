@@ -22,6 +22,60 @@ function bc_v1_org_member_count(mysqli $conn, int $orgId): int
     return (int) ($row['c'] ?? 0);
 }
 
+function bc_v1_orgs_members_get(mysqli $conn, array $params): void
+{
+    bc_v1_require_method(['GET']);
+    $actor = bc_v1_actor($conn, true);
+    $orgId = ctype_digit((string) ($params['id'] ?? '')) ? (int) $params['id'] : 0;
+    if ($orgId <= 0) {
+        bc_v1_json_error(422, 'invalid_org', 'Organization id is invalid.');
+    }
+
+    $org = bc_v1_org_context($conn, $actor, $orgId);
+    if (!$org['is_org_owner'] && !bc_v1_actor_is_admin($actor)) {
+        bc_v1_json_error(403, 'forbidden', 'Only organization owners or system admins can view members.');
+    }
+
+    $stmt = $conn->prepare("
+      SELECT
+        om.user_id,
+        om.role,
+        om.joined_at,
+        u.username,
+        u.email,
+        u.role AS system_role,
+        CASE WHEN o.owner_id = om.user_id THEN 1 ELSE 0 END AS is_owner
+      FROM org_members om
+      JOIN users u ON u.id = om.user_id
+      JOIN organizations o ON o.id = om.org_id
+      WHERE om.org_id = ?
+      ORDER BY
+        CASE WHEN o.owner_id = om.user_id THEN 0 ELSE 1 END ASC,
+        u.username ASC
+    ");
+    $stmt->bind_param('i', $orgId);
+    $stmt->execute();
+    $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+    $stmt->close();
+
+    $members = array_map(static function (array $row): array {
+        return [
+            'user_id' => (int) $row['user_id'],
+            'username' => (string) $row['username'],
+            'email' => (string) $row['email'],
+            'system_role' => bugcatcher_normalize_system_role((string) $row['system_role']),
+            'org_role' => (string) $row['role'],
+            'is_owner' => (bool) ((int) $row['is_owner']),
+            'joined_at' => (string) $row['joined_at'],
+        ];
+    }, $rows);
+
+    bc_v1_json_success([
+        'org' => $org,
+        'members' => $members,
+    ]);
+}
+
 function bc_v1_orgs_get(mysqli $conn, array $params): void
 {
     bc_v1_require_method(['GET']);
@@ -115,6 +169,16 @@ function bc_v1_orgs_post(mysqli $conn, array $params): void
     }
 
     bc_v1_set_active_org($conn, $userId, $orgId);
+    bugcatcher_notifications_send($conn, [$userId], [
+        'type' => 'org',
+        'event_key' => 'org_created',
+        'title' => 'Organization created',
+        'body' => $name . ' is ready to use.',
+        'severity' => 'success',
+        'link_path' => '/app/organizations',
+        'actor_user_id' => $userId,
+        'org_id' => $orgId,
+    ]);
     bc_v1_json_success(['created' => true, 'org_id' => $orgId, 'active_org_id' => $orgId], 201);
 }
 
@@ -150,6 +214,16 @@ function bc_v1_orgs_join_post(mysqli $conn, array $params): void
     }
 
     bc_v1_set_active_org($conn, $userId, $orgId);
+    bugcatcher_notifications_send($conn, array_merge([$userId], bugcatcher_notification_org_owner_ids($conn, $orgId)), [
+        'type' => 'org',
+        'event_key' => 'org_joined',
+        'title' => 'Member joined organization',
+        'body' => 'A member joined organization #' . $orgId . '.',
+        'severity' => 'default',
+        'link_path' => '/app/organizations',
+        'actor_user_id' => $userId,
+        'org_id' => $orgId,
+    ]);
     bc_v1_json_success(['joined' => true, 'org_id' => $orgId, 'active_org_id' => $orgId]);
 }
 
@@ -185,6 +259,16 @@ function bc_v1_orgs_leave_post(mysqli $conn, array $params): void
 
     $nextOrgId = bc_v1_first_org_id($conn, $userId);
     bc_v1_set_active_org($conn, $userId, $nextOrgId);
+    bugcatcher_notifications_send($conn, bugcatcher_notification_org_owner_ids($conn, $orgId), [
+        'type' => 'org',
+        'event_key' => 'org_left',
+        'title' => 'Member left organization',
+        'body' => 'A member left organization #' . $orgId . '.',
+        'severity' => 'default',
+        'link_path' => '/app/organizations',
+        'actor_user_id' => $userId,
+        'org_id' => $orgId,
+    ]);
     bc_v1_json_success(['left' => true, 'org_id' => $orgId, 'active_org_id' => $nextOrgId]);
 }
 
@@ -233,6 +317,17 @@ function bc_v1_orgs_transfer_owner_post(mysqli $conn, array $params): void
         bc_v1_json_error(500, 'transfer_failed', 'Failed to transfer ownership.', $e->getMessage());
     }
 
+    bugcatcher_notifications_send($conn, [$newOwnerId, $currentUserId], [
+        'type' => 'org',
+        'event_key' => 'org_transfer_owner',
+        'title' => 'Organization ownership transferred',
+        'body' => 'Ownership was transferred in organization #' . $orgId . '.',
+        'severity' => 'alert',
+        'link_path' => '/app/manage-users',
+        'actor_user_id' => $currentUserId,
+        'org_id' => $orgId,
+    ]);
+
     bc_v1_json_success(['transferred' => true, 'org_id' => $orgId, 'new_owner_id' => $newOwnerId]);
 }
 
@@ -262,6 +357,15 @@ function bc_v1_orgs_delete(mysqli $conn, array $params): void
 
     $nextOrgId = bc_v1_first_org_id($conn, $userId);
     bc_v1_set_active_org($conn, $userId, $nextOrgId);
+    bugcatcher_notifications_send($conn, [$userId], [
+        'type' => 'org',
+        'event_key' => 'org_deleted',
+        'title' => 'Organization deleted',
+        'body' => 'Organization #' . $orgId . ' was deleted.',
+        'severity' => 'alert',
+        'link_path' => '/app/organizations',
+        'actor_user_id' => $userId,
+    ]);
     bc_v1_json_success(['deleted' => true, 'org_id' => $orgId, 'active_org_id' => $nextOrgId]);
 }
 
@@ -299,6 +403,17 @@ function bc_v1_orgs_member_role_patch(mysqli $conn, array $params): void
     $stmt->bind_param('sii', $newRole, $orgId, $targetUserId);
     $stmt->execute();
     $stmt->close();
+
+    bugcatcher_notifications_send($conn, [$targetUserId, $userId], [
+        'type' => 'org',
+        'event_key' => 'org_role_changed',
+        'title' => 'Organization role updated',
+        'body' => 'Role changed to ' . $newRole . '.',
+        'severity' => 'alert',
+        'link_path' => '/app/manage-users',
+        'actor_user_id' => $userId,
+        'org_id' => $orgId,
+    ]);
     bc_v1_json_success(['updated' => true, 'org_id' => $orgId, 'user_id' => $targetUserId, 'role' => $newRole]);
 }
 
@@ -331,5 +446,16 @@ function bc_v1_orgs_member_delete(mysqli $conn, array $params): void
     $stmt->bind_param('ii', $orgId, $targetUserId);
     $stmt->execute();
     $stmt->close();
+
+    bugcatcher_notifications_send($conn, [$targetUserId, $userId], [
+        'type' => 'org',
+        'event_key' => 'org_member_kicked',
+        'title' => 'Member removed from organization',
+        'body' => 'A member was removed from organization #' . $orgId . '.',
+        'severity' => 'alert',
+        'link_path' => '/app/organizations',
+        'actor_user_id' => $userId,
+        'org_id' => $orgId,
+    ]);
     bc_v1_json_success(['kicked' => true, 'org_id' => $orgId, 'user_id' => $targetUserId]);
 }

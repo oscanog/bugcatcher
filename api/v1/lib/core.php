@@ -6,6 +6,7 @@ require_once dirname(__DIR__, 3) . '/app/bootstrap.php';
 require_once dirname(__DIR__, 3) . '/app/password_reset.php';
 require_once dirname(__DIR__, 3) . '/app/checklist_lib.php';
 require_once dirname(__DIR__, 3) . '/app/openclaw_lib.php';
+require_once dirname(__DIR__, 3) . '/app/notification_lib.php';
 
 const BC_V1_ORG_ROLES = [
     'owner',
