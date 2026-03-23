@@ -5,8 +5,8 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-User=www-data
-Group=www-data
+User=mvine
+Group=mvine
 WorkingDirectory=/var/www/bugcatcher/services/realtime-notifications
 Environment=BUGCATCHER_CONFIG_PATH=/var/www/bugcatcher/shared/config.php
 ExecStart=/usr/bin/node /var/www/bugcatcher/services/realtime-notifications/server.cjs
