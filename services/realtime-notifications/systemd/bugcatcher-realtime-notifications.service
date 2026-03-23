@@ -1,0 +1,17 @@
+[Unit]
+Description=BugCatcher realtime notifications websocket service
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=bugcatcher
+Group=www-data
+WorkingDirectory=/var/www/bugcatcher/current/services/realtime-notifications
+Environment=BUGCATCHER_CONFIG_PATH=/var/www/bugcatcher/shared/config.php
+ExecStart=/usr/bin/node /var/www/bugcatcher/current/services/realtime-notifications/server.cjs
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

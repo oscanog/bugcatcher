@@ -9,6 +9,7 @@ require_once __DIR__ . '/discord.php';
 require_once __DIR__ . '/issues.php';
 require_once __DIR__ . '/dashboard.php';
 require_once __DIR__ . '/notifications.php';
+require_once __DIR__ . '/realtime.php';
 require_once __DIR__ . '/admin_openclaw.php';
 require_once __DIR__ . '/aliases.php';
 
@@ -79,6 +80,7 @@ function bc_v1_routes(): array
         ['method' => 'GET', 'pattern' => '/notifications', 'handler' => 'bc_v1_notifications_get'],
         ['method' => 'POST', 'pattern' => '/notifications/read-all', 'handler' => 'bc_v1_notifications_read_all_post'],
         ['method' => 'POST', 'pattern' => '/notifications/{id}/read', 'handler' => 'bc_v1_notifications_read_post'],
+        ['method' => 'POST', 'pattern' => '/realtime/socket-token', 'handler' => 'bc_v1_realtime_socket_token_post'],
 
         ['method' => 'ANY', 'pattern' => '/checklist/batches', 'handler' => 'bc_v1_alias_checklist_batches'],
         ['method' => 'ANY', 'pattern' => '/checklist/batch', 'handler' => 'bc_v1_alias_checklist_batch'],

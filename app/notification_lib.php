@@ -56,6 +56,158 @@ function bugcatcher_notification_shape(array $row): array
     ];
 }
 
+function bugcatcher_realtime_notifications_enabled(): bool
+{
+    return (bool) bugcatcher_config('REALTIME_NOTIFICATIONS_ENABLED', true);
+}
+
+function bugcatcher_realtime_notifications_host(): string
+{
+    return trim((string) bugcatcher_config('REALTIME_NOTIFICATIONS_HOST', '127.0.0.1'));
+}
+
+function bugcatcher_realtime_notifications_port(): int
+{
+    return max(1, (int) bugcatcher_config('REALTIME_NOTIFICATIONS_PORT', 8090));
+}
+
+function bugcatcher_realtime_notifications_internal_shared_secret(): string
+{
+    $secret = trim((string) bugcatcher_config('REALTIME_NOTIFICATIONS_INTERNAL_SHARED_SECRET', ''));
+    if ($secret === '') {
+        $secret = trim((string) bugcatcher_config('OPENCLAW_INTERNAL_SHARED_SECRET', ''));
+    }
+    if ($secret === '' || $secret === 'replace-me-too') {
+        $secret = 'bugcatcher-realtime-dev-secret';
+    }
+
+    return $secret;
+}
+
+function bugcatcher_realtime_notifications_publish_url(): string
+{
+    $host = bugcatcher_realtime_notifications_host();
+    $port = bugcatcher_realtime_notifications_port();
+    if ($host === '' || $port <= 0) {
+        return '';
+    }
+
+    return sprintf('http://%s:%d/internal/publish', $host, $port);
+}
+
+function bugcatcher_notification_log(string $message): void
+{
+    error_log('[bugcatcher-realtime] ' . $message);
+}
+
+function bugcatcher_notification_fetch(mysqli $conn, int $userId, int $notificationId): ?array
+{
+    if ($notificationId <= 0 || $userId <= 0) {
+        return null;
+    }
+
+    $stmt = $conn->prepare("
+        SELECT n.*, actor.username AS actor_username
+        FROM notifications n
+        LEFT JOIN users actor ON actor.id = n.actor_user_id
+        WHERE n.id = ? AND n.recipient_user_id = ?
+        LIMIT 1
+    ");
+    $stmt->bind_param('ii', $notificationId, $userId);
+    $stmt->execute();
+    $row = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+
+    return $row ? bugcatcher_notification_shape($row) : null;
+}
+
+function bugcatcher_notification_counts(mysqli $conn, int $userId): array
+{
+    $countStmt = $conn->prepare("
+        SELECT
+            SUM(CASE WHEN read_at IS NULL THEN 1 ELSE 0 END) AS unread_count,
+            COUNT(*) AS total_count
+        FROM notifications
+        WHERE recipient_user_id = ?
+    ");
+    $countStmt->bind_param('i', $userId);
+    $countStmt->execute();
+    $counts = $countStmt->get_result()->fetch_assoc() ?: ['unread_count' => 0, 'total_count' => 0];
+    $countStmt->close();
+
+    return [
+        'unread_count' => (int) ($counts['unread_count'] ?? 0),
+        'total_count' => (int) ($counts['total_count'] ?? 0),
+    ];
+}
+
+function bugcatcher_notification_realtime_publish(array $payload): void
+{
+    if (!bugcatcher_realtime_notifications_enabled()) {
+        return;
+    }
+
+    $url = bugcatcher_realtime_notifications_publish_url();
+    $secret = bugcatcher_realtime_notifications_internal_shared_secret();
+    if ($url === '' || $secret === '') {
+        return;
+    }
+
+    $json = json_encode($payload, JSON_UNESCAPED_SLASHES);
+    if (!is_string($json) || $json === '') {
+        bugcatcher_notification_log('Unable to encode realtime payload.');
+        return;
+    }
+
+    $context = stream_context_create([
+        'http' => [
+            'method' => 'POST',
+            'header' => implode("\r\n", [
+                'Content-Type: application/json',
+                'Accept: application/json',
+                'Authorization: Bearer ' . $secret,
+                'Connection: close',
+            ]) . "\r\n",
+            'content' => $json,
+            'timeout' => 1.5,
+            'ignore_errors' => true,
+        ],
+    ]);
+
+    $result = @file_get_contents($url, false, $context);
+    $statusLine = $http_response_header[0] ?? '';
+    if ($result === false || !preg_match('/\s2\d\d\s/', $statusLine)) {
+        bugcatcher_notification_log('Publish failed for ' . ($payload['type'] ?? 'unknown') . ' (' . $statusLine . ')');
+    }
+}
+
+function bugcatcher_notification_dispatch_realtime(
+    mysqli $conn,
+    int $userId,
+    string $type,
+    ?array $notification = null,
+    array $extra = []
+): void {
+    if ($userId <= 0) {
+        return;
+    }
+
+    $counts = bugcatcher_notification_counts($conn, $userId);
+    $payload = array_merge([
+        'type' => $type,
+        'recipient_user_id' => $userId,
+        'unread_count' => $counts['unread_count'],
+        'total_count' => $counts['total_count'],
+        'timestamp' => gmdate('c'),
+    ], $extra);
+
+    if ($notification !== null) {
+        $payload['notification'] = $notification;
+    }
+
+    bugcatcher_notification_realtime_publish($payload);
+}
+
 function bugcatcher_notification_create(mysqli $conn, array $payload): void
 {
     $recipientUserId = (int) ($payload['recipient_user_id'] ?? 0);
@@ -107,7 +259,11 @@ function bugcatcher_notification_create(mysqli $conn, array $payload): void
         $metaJson
     );
     $stmt->execute();
+    $notificationId = (int) $conn->insert_id;
     $stmt->close();
+
+    $notification = bugcatcher_notification_fetch($conn, $recipientUserId, $notificationId);
+    bugcatcher_notification_dispatch_realtime($conn, $recipientUserId, 'notification.created', $notification);
 }
 
 function bugcatcher_notifications_send(mysqli $conn, array $recipientUserIds, array $payload): void
@@ -194,22 +350,12 @@ function bugcatcher_notifications_list(
     $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
     $stmt->close();
 
-    $countStmt = $conn->prepare("
-        SELECT
-            SUM(CASE WHEN read_at IS NULL THEN 1 ELSE 0 END) AS unread_count,
-            COUNT(*) AS total_count
-        FROM notifications
-        WHERE recipient_user_id = ?
-    ");
-    $countStmt->bind_param('i', $userId);
-    $countStmt->execute();
-    $counts = $countStmt->get_result()->fetch_assoc() ?: ['unread_count' => 0, 'total_count' => 0];
-    $countStmt->close();
+    $counts = bugcatcher_notification_counts($conn, $userId);
 
     return [
         'items' => array_map('bugcatcher_notification_shape', $rows),
-        'unread_count' => (int) ($counts['unread_count'] ?? 0),
-        'total_count' => (int) ($counts['total_count'] ?? 0),
+        'unread_count' => $counts['unread_count'],
+        'total_count' => $counts['total_count'],
     ];
 }
 
@@ -228,19 +374,12 @@ function bugcatcher_notification_mark_read(mysqli $conn, int $userId, int $notif
     $stmt->execute();
     $stmt->close();
 
-    $stmt = $conn->prepare("
-        SELECT n.*, actor.username AS actor_username
-        FROM notifications n
-        LEFT JOIN users actor ON actor.id = n.actor_user_id
-        WHERE n.id = ? AND n.recipient_user_id = ?
-        LIMIT 1
-    ");
-    $stmt->bind_param('ii', $notificationId, $userId);
-    $stmt->execute();
-    $row = $stmt->get_result()->fetch_assoc();
-    $stmt->close();
+    $notification = bugcatcher_notification_fetch($conn, $userId, $notificationId);
+    if ($notification) {
+        bugcatcher_notification_dispatch_realtime($conn, $userId, 'notification.read', $notification);
+    }
 
-    return $row ? bugcatcher_notification_shape($row) : null;
+    return $notification;
 }
 
 function bugcatcher_notifications_mark_all_read(mysqli $conn, int $userId): int
@@ -254,6 +393,10 @@ function bugcatcher_notifications_mark_all_read(mysqli $conn, int $userId): int
     $stmt->execute();
     $affected = (int) $stmt->affected_rows;
     $stmt->close();
+
+    bugcatcher_notification_dispatch_realtime($conn, $userId, 'notification.read_all', null, [
+        'updated' => $affected,
+    ]);
 
     return $affected;
 }

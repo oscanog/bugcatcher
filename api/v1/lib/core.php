@@ -157,6 +157,11 @@ function bc_v1_base64url_decode(string $data): string
     return is_string($decoded) ? $decoded : '';
 }
 
+function bc_v1_derive_secret(string $namespace, string $seed): string
+{
+    return hash('sha256', $namespace . '|' . $seed, true);
+}
+
 function bc_v1_token_secret(): string
 {
     $secret = (string) bugcatcher_config('OPENCLAW_ENCRYPTION_KEY', '');
@@ -166,7 +171,23 @@ function bc_v1_token_secret(): string
     if ($secret === '' || $secret === 'replace-me-too') {
         $secret = 'bugcatcher-v1-dev-secret';
     }
-    return hash('sha256', 'bugcatcher-v1|' . $secret, true);
+    return bc_v1_derive_secret('bugcatcher-v1', $secret);
+}
+
+function bc_v1_socket_token_secret(): string
+{
+    $secret = trim((string) bugcatcher_config('REALTIME_NOTIFICATIONS_SOCKET_SECRET', ''));
+    if ($secret === '') {
+        $secret = (string) bugcatcher_config('OPENCLAW_ENCRYPTION_KEY', '');
+    }
+    if ($secret === '' || $secret === 'replace-with-32-byte-secret') {
+        $secret = (string) bugcatcher_config('OPENCLAW_INTERNAL_SHARED_SECRET', '');
+    }
+    if ($secret === '' || $secret === 'replace-me-too') {
+        $secret = 'bugcatcher-realtime-dev-secret';
+    }
+
+    return bc_v1_derive_secret('bugcatcher-realtime', $secret);
 }
 
 function bc_v1_sign_token(array $payload): string
@@ -203,6 +224,38 @@ function bc_v1_verify_token(string $token): ?array
         return null;
     }
     return $payload;
+}
+
+function bc_v1_sign_socket_token(array $payload): string
+{
+    $header = ['alg' => 'HS256', 'typ' => 'JWT'];
+    $head = bc_v1_base64url_encode(json_encode($header));
+    $body = bc_v1_base64url_encode(json_encode($payload));
+    $sig = hash_hmac('sha256', $head . '.' . $body, bc_v1_socket_token_secret(), true);
+    return $head . '.' . $body . '.' . bc_v1_base64url_encode($sig);
+}
+
+function bc_v1_issue_socket_token(array $user, int $activeOrgId): array
+{
+    $now = time();
+    $path = (string) bugcatcher_config('REALTIME_NOTIFICATIONS_PATH', '/ws/notifications');
+    $token = bc_v1_sign_socket_token([
+        'iss' => 'bugcatcher',
+        'aud' => 'notifications',
+        'type' => 'socket',
+        'sub' => (int) $user['id'],
+        'username' => (string) $user['username'],
+        'role' => (string) $user['role'],
+        'ao' => $activeOrgId,
+        'iat' => $now,
+        'exp' => $now + 300,
+    ]);
+
+    return [
+        'socket_token' => $token,
+        'path' => $path,
+        'expires_in' => 300,
+    ];
 }
 
 function bc_v1_fetch_user_by_id(mysqli $conn, int $userId): ?array

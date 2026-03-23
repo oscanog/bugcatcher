@@ -24,6 +24,12 @@ function bugcatcher_default_config(): array
         'OPENCLAW_ENCRYPTION_KEY' => 'replace-with-32-byte-secret',
         'OPENCLAW_TEMP_UPLOAD_DIR' => dirname(__DIR__) . DIRECTORY_SEPARATOR . 'uploads' . DIRECTORY_SEPARATOR . 'openclaw-tmp',
         'OPENCLAW_LOG_LEVEL' => 'info',
+        'REALTIME_NOTIFICATIONS_ENABLED' => true,
+        'REALTIME_NOTIFICATIONS_HOST' => '127.0.0.1',
+        'REALTIME_NOTIFICATIONS_PORT' => 8090,
+        'REALTIME_NOTIFICATIONS_PATH' => '/ws/notifications',
+        'REALTIME_NOTIFICATIONS_INTERNAL_SHARED_SECRET' => '',
+        'REALTIME_NOTIFICATIONS_SOCKET_SECRET' => '',
         'MAIL_MAILER' => '',
         'MAIL_HOST' => 'smtp.gmail.com',
         'MAIL_PORT' => 587,
@@ -89,6 +95,22 @@ function bugcatcher_load_config(): array
     $config['OPENCLAW_ENCRYPTION_KEY'] = (string) ($config['OPENCLAW_ENCRYPTION_KEY'] ?? '');
     $config['OPENCLAW_TEMP_UPLOAD_DIR'] = rtrim((string) ($config['OPENCLAW_TEMP_UPLOAD_DIR'] ?? ''), "\\/");
     $config['OPENCLAW_LOG_LEVEL'] = (string) ($config['OPENCLAW_LOG_LEVEL'] ?? 'info');
+    $config['REALTIME_NOTIFICATIONS_ENABLED'] = filter_var(
+        $config['REALTIME_NOTIFICATIONS_ENABLED'] ?? true,
+        FILTER_VALIDATE_BOOLEAN,
+        FILTER_NULL_ON_FAILURE
+    );
+    if ($config['REALTIME_NOTIFICATIONS_ENABLED'] === null) {
+        $config['REALTIME_NOTIFICATIONS_ENABLED'] = true;
+    }
+    $config['REALTIME_NOTIFICATIONS_HOST'] = trim((string) ($config['REALTIME_NOTIFICATIONS_HOST'] ?? '127.0.0.1'));
+    if ($config['REALTIME_NOTIFICATIONS_HOST'] === '') {
+        $config['REALTIME_NOTIFICATIONS_HOST'] = '127.0.0.1';
+    }
+    $config['REALTIME_NOTIFICATIONS_PORT'] = max(1, (int) ($config['REALTIME_NOTIFICATIONS_PORT'] ?? 8090));
+    $config['REALTIME_NOTIFICATIONS_PATH'] = '/' . trim((string) ($config['REALTIME_NOTIFICATIONS_PATH'] ?? '/ws/notifications'), '/');
+    $config['REALTIME_NOTIFICATIONS_INTERNAL_SHARED_SECRET'] = (string) ($config['REALTIME_NOTIFICATIONS_INTERNAL_SHARED_SECRET'] ?? '');
+    $config['REALTIME_NOTIFICATIONS_SOCKET_SECRET'] = (string) ($config['REALTIME_NOTIFICATIONS_SOCKET_SECRET'] ?? '');
     $config['MAIL_MAILER'] = strtolower(trim((string) ($config['MAIL_MAILER'] ?? '')));
     $config['MAIL_HOST'] = trim((string) ($config['MAIL_HOST'] ?? ''));
     $config['MAIL_PORT'] = (int) ($config['MAIL_PORT'] ?? 587);
