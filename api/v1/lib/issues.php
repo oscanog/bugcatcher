@@ -69,6 +69,7 @@ function bc_v1_issue_labels_map(mysqli $conn, array $issueIds): array
 
 function bc_v1_issue_attachments_map(mysqli $conn, array $issueIds): array
 {
+    bugcatcher_file_storage_ensure_schema($conn);
     if (!$issueIds) {
         return [];
     }
@@ -453,11 +454,7 @@ function bc_v1_issues_post(mysqli $conn, array $params): void
         bc_v1_json_error(422, 'validation_error', 'At least one label is required.');
     }
     $labelIds = bc_v1_issue_validate_labels($conn, $labelIds);
-
-    $uploadDir = bugcatcher_uploads_dir();
-    if (!is_dir($uploadDir)) {
-        mkdir($uploadDir, 02775, true);
-    }
+    bugcatcher_file_storage_ensure_schema($conn);
 
     $allowedMimes = [
         'image/jpeg' => 'jpg',
@@ -466,6 +463,7 @@ function bc_v1_issues_post(mysqli $conn, array $params): void
         'image/webp' => 'webp',
     ];
     $maxBytes = 10 * 1024 * 1024;
+    $uploadedKeys = [];
 
     $conn->begin_transaction();
     try {
@@ -487,8 +485,8 @@ function bc_v1_issues_post(mysqli $conn, array $params): void
 
         if (!empty($_FILES['images']) && is_array($_FILES['images']['name'])) {
             $stmtAtt = $conn->prepare("
-                INSERT INTO issue_attachments (issue_id, file_path, original_name, mime_type, file_size)
-                VALUES (?, ?, ?, ?, ?)
+                INSERT INTO issue_attachments (issue_id, file_path, storage_key, original_name, mime_type, file_size)
+                VALUES (?, ?, ?, ?, ?, ?)
             ");
 
             $count = count($_FILES['images']['name']);
@@ -520,15 +518,17 @@ function bc_v1_issues_post(mysqli $conn, array $params): void
                 $ext = $allowedMimes[$mime];
                 $origName = (string) ($_FILES['images']['name'][$i] ?? ('image.' . $ext));
                 $safeOrig = preg_replace('/[^a-zA-Z0-9._-]/', '_', $origName);
-                $newName = 'issue_' . $issueId . '_' . bin2hex(random_bytes(8)) . '.' . $ext;
-                $destAbs = $uploadDir . DIRECTORY_SEPARATOR . $newName;
-                $destRel = bugcatcher_upload_relative_path($newName);
-
-                if (!move_uploaded_file($tmp, $destAbs)) {
-                    continue;
+                $stored = bugcatcher_file_storage_upload_file($tmp, $safeOrig, $mime, $size, 'issues');
+                $filePath = (string) $stored['file_path'];
+                $storageKey = (string) ($stored['storage_key'] ?? '');
+                $storedName = (string) ($stored['original_name'] ?? $safeOrig);
+                $storedMime = (string) ($stored['mime_type'] ?? $mime);
+                $storedSize = (int) ($stored['file_size'] ?? $size);
+                if ($storageKey !== '') {
+                    $uploadedKeys[] = $storageKey;
                 }
 
-                $stmtAtt->bind_param('isssi', $issueId, $destRel, $safeOrig, $mime, $size);
+                $stmtAtt->bind_param('issssi', $issueId, $filePath, $storageKey, $storedName, $storedMime, $storedSize);
                 $stmtAtt->execute();
             }
 
@@ -538,6 +538,13 @@ function bc_v1_issues_post(mysqli $conn, array $params): void
         $conn->commit();
     } catch (Throwable $e) {
         $conn->rollback();
+        foreach ($uploadedKeys as $uploadedKey) {
+            try {
+                bugcatcher_file_storage_delete($uploadedKey);
+            } catch (Throwable $deleteError) {
+                // Ignore cleanup errors after rollback.
+            }
+        }
         bc_v1_json_error(500, 'issue_create_failed', 'Failed to create issue.', $e->getMessage());
     }
 
@@ -583,24 +590,24 @@ function bc_v1_issues_delete(mysqli $conn, array $params): void
     if (!$isSystemAdmin && $isOrgOwner && (string) ($issue['status'] ?? '') === 'closed') {
         bc_v1_json_error(422, 'forbidden_closed_issue', 'Closed issues cannot be deleted by the organization owner.');
     }
+    bugcatcher_file_storage_ensure_schema($conn);
 
     $conn->begin_transaction();
     try {
-        $stmt = $conn->prepare("SELECT file_path FROM issue_attachments WHERE issue_id = ?");
+        $stmt = $conn->prepare("SELECT file_path, storage_key FROM issue_attachments WHERE issue_id = ?");
         $stmt->bind_param('i', $issueId);
         $stmt->execute();
         $files = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
         $stmt->close();
 
         foreach ($files as $file) {
+            $storageKey = (string) ($file['storage_key'] ?? '');
             $storedPath = (string) ($file['file_path'] ?? '');
-            if ($storedPath === '') {
+            if ($storageKey !== '') {
+                bugcatcher_file_storage_delete($storageKey);
                 continue;
             }
-            $absolutePath = bugcatcher_upload_absolute_path($storedPath);
-            if ($absolutePath !== null && is_file($absolutePath)) {
-                @unlink($absolutePath);
-            }
+            bugcatcher_file_storage_delete_legacy_local(bugcatcher_upload_absolute_path($storedPath));
         }
 
         $stmt = $conn->prepare("DELETE FROM issue_attachments WHERE issue_id = ?");

@@ -11,6 +11,7 @@ require_once __DIR__ . '/dashboard.php';
 require_once __DIR__ . '/notifications.php';
 require_once __DIR__ . '/realtime.php';
 require_once __DIR__ . '/admin_openclaw.php';
+require_once __DIR__ . '/ai_chat.php';
 require_once __DIR__ . '/aliases.php';
 
 function bc_v1_routes(): array
@@ -81,6 +82,16 @@ function bc_v1_routes(): array
         ['method' => 'POST', 'pattern' => '/notifications/read-all', 'handler' => 'bc_v1_notifications_read_all_post'],
         ['method' => 'POST', 'pattern' => '/notifications/{id}/read', 'handler' => 'bc_v1_notifications_read_post'],
         ['method' => 'POST', 'pattern' => '/realtime/socket-token', 'handler' => 'bc_v1_realtime_socket_token_post'],
+        ['method' => 'GET', 'pattern' => '/ai-chat/bootstrap', 'handler' => 'bc_v1_ai_chat_bootstrap_get'],
+        ['method' => 'GET', 'pattern' => '/ai-chat/threads', 'handler' => 'bc_v1_ai_chat_threads_get'],
+        ['method' => 'POST', 'pattern' => '/ai-chat/threads', 'handler' => 'bc_v1_ai_chat_threads_post'],
+        ['method' => 'GET', 'pattern' => '/ai-chat/threads/{id}', 'handler' => 'bc_v1_ai_chat_threads_id_get'],
+        ['method' => 'PATCH', 'pattern' => '/ai-chat/threads/{id}/draft-context', 'handler' => 'bc_v1_ai_chat_threads_id_draft_context_patch'],
+        ['method' => 'POST', 'pattern' => '/ai-chat/threads/{id}/checklist-drafts', 'handler' => 'bc_v1_ai_chat_threads_id_checklist_drafts_post'],
+        ['method' => 'DELETE', 'pattern' => '/ai-chat/threads/{id}', 'handler' => 'bc_v1_ai_chat_threads_id_delete'],
+        ['method' => 'POST', 'pattern' => '/ai-chat/generated-items/{id}/approve', 'handler' => 'bc_v1_ai_chat_generated_items_id_approve_post'],
+        ['method' => 'POST', 'pattern' => '/ai-chat/generated-items/{id}/reject', 'handler' => 'bc_v1_ai_chat_generated_items_id_reject_post'],
+        ['method' => 'POST', 'pattern' => '/ai-chat/threads/{id}/messages/stream', 'handler' => 'bc_v1_ai_chat_threads_messages_stream_post'],
 
         ['method' => 'ANY', 'pattern' => '/checklist/batches', 'handler' => 'bc_v1_alias_checklist_batches'],
         ['method' => 'ANY', 'pattern' => '/checklist/batch', 'handler' => 'bc_v1_alias_checklist_batch'],

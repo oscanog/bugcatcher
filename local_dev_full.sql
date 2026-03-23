@@ -270,6 +270,7 @@ CREATE TABLE IF NOT EXISTS checklist_attachments (
   id INT(11) NOT NULL AUTO_INCREMENT,
   checklist_item_id INT(11) NOT NULL,
   file_path VARCHAR(255) NOT NULL,
+  storage_key VARCHAR(255) DEFAULT NULL,
   original_name VARCHAR(255) NOT NULL,
   mime_type VARCHAR(100) NOT NULL,
   file_size INT(11) NOT NULL,
@@ -291,6 +292,7 @@ CREATE TABLE IF NOT EXISTS checklist_batch_attachments (
   id INT(11) NOT NULL AUTO_INCREMENT,
   checklist_batch_id INT(11) NOT NULL,
   file_path VARCHAR(255) NOT NULL,
+  storage_key VARCHAR(255) DEFAULT NULL,
   original_name VARCHAR(255) NOT NULL,
   mime_type VARCHAR(100) NOT NULL,
   file_size INT(11) NOT NULL,
@@ -357,6 +359,11 @@ CREATE TABLE IF NOT EXISTS openclaw_runtime_config (
   default_provider_config_id INT(11) DEFAULT NULL,
   default_model_id INT(11) DEFAULT NULL,
   notes TEXT DEFAULT NULL,
+  ai_chat_enabled TINYINT(1) NOT NULL DEFAULT 1,
+  ai_chat_default_provider_config_id INT(11) DEFAULT NULL,
+  ai_chat_default_model_id INT(11) DEFAULT NULL,
+  ai_chat_assistant_name VARCHAR(120) DEFAULT NULL,
+  ai_chat_system_prompt TEXT DEFAULT NULL,
   created_by INT(11) NOT NULL,
   updated_by INT(11) DEFAULT NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -528,6 +535,7 @@ CREATE TABLE IF NOT EXISTS openclaw_request_attachments (
   mime_type VARCHAR(100) NOT NULL,
   file_size INT(11) NOT NULL,
   file_path VARCHAR(255) NOT NULL,
+  storage_key VARCHAR(255) DEFAULT NULL,
   is_image TINYINT(1) NOT NULL DEFAULT 1,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
@@ -554,6 +562,7 @@ CREATE TABLE IF NOT EXISTS issue_attachments (
   id INT(11) NOT NULL AUTO_INCREMENT,
   issue_id INT(11) NOT NULL,
   file_path VARCHAR(255) NOT NULL,
+  storage_key VARCHAR(255) DEFAULT NULL,
   original_name VARCHAR(255) NOT NULL,
   mime_type VARCHAR(100) NOT NULL,
   file_size INT(11) NOT NULL,
@@ -562,6 +571,64 @@ CREATE TABLE IF NOT EXISTS issue_attachments (
   KEY idx_issue_attachments_issue (issue_id),
   CONSTRAINT fk_issue_attachments_issue
     FOREIGN KEY (issue_id) REFERENCES issues(id)
+    ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+CREATE TABLE IF NOT EXISTS ai_chat_threads (
+  id INT(11) NOT NULL AUTO_INCREMENT,
+  org_id INT(11) NOT NULL,
+  user_id INT(11) NOT NULL,
+  title VARCHAR(160) NOT NULL DEFAULT 'New chat',
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT NULL,
+  last_message_at DATETIME DEFAULT NULL,
+  PRIMARY KEY (id),
+  KEY idx_ai_chat_threads_owner (user_id, org_id, updated_at),
+  CONSTRAINT fk_ai_chat_threads_org
+    FOREIGN KEY (org_id) REFERENCES organizations(id)
+    ON DELETE CASCADE,
+  CONSTRAINT fk_ai_chat_threads_user
+    FOREIGN KEY (user_id) REFERENCES users(id)
+    ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+CREATE TABLE IF NOT EXISTS ai_chat_messages (
+  id INT(11) NOT NULL AUTO_INCREMENT,
+  thread_id INT(11) NOT NULL,
+  role ENUM('user', 'assistant', 'system') NOT NULL,
+  content LONGTEXT DEFAULT NULL,
+  status ENUM('pending', 'streaming', 'completed', 'failed') NOT NULL DEFAULT 'completed',
+  error_message TEXT DEFAULT NULL,
+  provider_config_id INT(11) DEFAULT NULL,
+  model_id INT(11) DEFAULT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT NULL,
+  PRIMARY KEY (id),
+  KEY idx_ai_chat_messages_thread (thread_id, id),
+  CONSTRAINT fk_ai_chat_messages_thread
+    FOREIGN KEY (thread_id) REFERENCES ai_chat_threads(id)
+    ON DELETE CASCADE,
+  CONSTRAINT fk_ai_chat_messages_provider
+    FOREIGN KEY (provider_config_id) REFERENCES ai_provider_configs(id)
+    ON DELETE SET NULL,
+  CONSTRAINT fk_ai_chat_messages_model
+    FOREIGN KEY (model_id) REFERENCES ai_models(id)
+    ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+CREATE TABLE IF NOT EXISTS ai_chat_message_attachments (
+  id INT(11) NOT NULL AUTO_INCREMENT,
+  message_id INT(11) NOT NULL,
+  file_path VARCHAR(255) NOT NULL,
+  storage_key VARCHAR(255) DEFAULT NULL,
+  original_name VARCHAR(255) NOT NULL,
+  mime_type VARCHAR(100) NOT NULL,
+  file_size INT(11) NOT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY idx_ai_chat_message_attachments_message (message_id),
+  CONSTRAINT fk_ai_chat_message_attachments_message
+    FOREIGN KEY (message_id) REFERENCES ai_chat_messages(id)
     ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
@@ -782,10 +849,12 @@ INSERT INTO checklist_items (
 -- Keep OpenClaw runtime off by default in local dev.
 INSERT INTO openclaw_runtime_config (
   id, is_enabled, encrypted_discord_bot_token, default_provider_config_id, default_model_id,
-  notes, created_by, updated_by
+  notes, ai_chat_enabled, ai_chat_default_provider_config_id, ai_chat_default_model_id,
+  ai_chat_assistant_name, ai_chat_system_prompt, created_by, updated_by
 ) VALUES (
   1, 0, NULL, NULL, NULL,
-  'Local dev bootstrap default',
+  'Local dev bootstrap default', 1, NULL, NULL,
+  'BugCatcher AI', 'You are BugCatcher AI. Help the team discuss bugs, tests, checklists, and project delivery clearly and practically.',
   1, 1
 );
 

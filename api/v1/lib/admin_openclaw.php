@@ -36,7 +36,12 @@ function bc_v1_admin_openclaw_runtime_put(mysqli $conn, array $params): void
             trim((string) ($payload['discord_bot_token'] ?? '')),
             bc_v1_get_int($payload, 'default_provider_config_id', 0),
             bc_v1_get_int($payload, 'default_model_id', 0),
-            trim((string) ($payload['notes'] ?? ''))
+            trim((string) ($payload['notes'] ?? '')),
+            bc_v1_get_bool($payload, 'ai_chat_enabled', true),
+            bc_v1_get_int($payload, 'ai_chat_default_provider_config_id', 0),
+            bc_v1_get_int($payload, 'ai_chat_default_model_id', 0),
+            trim((string) ($payload['ai_chat_assistant_name'] ?? '')),
+            trim((string) ($payload['ai_chat_system_prompt'] ?? ''))
         );
     } catch (Throwable $e) {
         bc_v1_json_error(422, 'runtime_save_failed', $e->getMessage());

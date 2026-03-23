@@ -242,6 +242,52 @@ function bugcatcher_checklist_fetch_batch(mysqli $conn, int $orgId, int $batchId
     return $row ?: null;
 }
 
+function bugcatcher_checklist_find_batch_by_exact_target(
+    mysqli $conn,
+    int $orgId,
+    int $projectId,
+    string $title,
+    string $moduleName,
+    string $submoduleName = ''
+): ?array {
+    $normalize = static function (string $value): string {
+        $trimmed = trim($value);
+        return function_exists('mb_strtolower')
+            ? mb_strtolower($trimmed, 'UTF-8')
+            : strtolower($trimmed);
+    };
+
+    $normalizedTitle = $normalize($title);
+    $normalizedModule = $normalize($moduleName);
+    $normalizedSubmodule = $normalize($submoduleName);
+
+    $stmt = $conn->prepare("
+        SELECT cb.*,
+               p.name AS project_name,
+               qa.username AS qa_lead_name,
+               cu.username AS created_by_name,
+               uu.username AS updated_by_name
+        FROM checklist_batches cb
+        JOIN projects p ON p.id = cb.project_id
+        LEFT JOIN users qa ON qa.id = cb.assigned_qa_lead_id
+        LEFT JOIN users cu ON cu.id = cb.created_by
+        LEFT JOIN users uu ON uu.id = cb.updated_by
+        WHERE cb.org_id = ?
+          AND cb.project_id = ?
+          AND LOWER(TRIM(cb.title)) = ?
+          AND LOWER(TRIM(cb.module_name)) = ?
+          AND LOWER(TRIM(COALESCE(cb.submodule_name, ''))) = ?
+        ORDER BY cb.id DESC
+        LIMIT 1
+    ");
+    $stmt->bind_param('iisss', $orgId, $projectId, $normalizedTitle, $normalizedModule, $normalizedSubmodule);
+    $stmt->execute();
+    $row = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+
+    return $row ?: null;
+}
+
 function bugcatcher_checklist_fetch_items_for_batch(mysqli $conn, int $batchId): array
 {
     $stmt = $conn->prepare("
@@ -456,6 +502,7 @@ function bugcatcher_checklist_store_uploaded_file(
     ?int $uploadedBy,
     string $sourceType = 'manual'
 ): bool {
+    bugcatcher_file_storage_ensure_schema($conn);
     $allowed = bugcatcher_checklist_allowed_mime_map();
     if ($size <= 0) {
         return false;
@@ -479,26 +526,24 @@ function bugcatcher_checklist_store_uploaded_file(
         return false;
     }
 
-    $uploadDir = bugcatcher_checklist_ensure_upload_dir();
-    $ext = $allowed[$mime]['ext'];
     $safeOrig = preg_replace('/[^a-zA-Z0-9._-]/', '_', $originalName);
-    $newName = "checklist_{$itemId}_" . bin2hex(random_bytes(8)) . ".{$ext}";
-    $destAbs = $uploadDir . DIRECTORY_SEPARATOR . $newName;
-    $destRel = bugcatcher_checklist_upload_relative_path($newName);
-
-    $moved = $isUploadedFile
-        ? move_uploaded_file($tmpPath, $destAbs)
-        : bugcatcher_checklist_move_server_file($tmpPath, $destAbs);
-    if (!$moved) {
+    try {
+        $stored = bugcatcher_file_storage_upload_file($tmpPath, $safeOrig, $mime, $size, 'checklist-item');
+    } catch (Throwable $e) {
         return false;
     }
+    $filePath = (string) $stored['file_path'];
+    $storageKey = (string) ($stored['storage_key'] ?? '');
+    $storedName = (string) ($stored['original_name'] ?? $safeOrig);
+    $storedMime = (string) ($stored['mime_type'] ?? $mime);
+    $storedSize = (int) ($stored['file_size'] ?? $size);
 
     $stmt = $conn->prepare("
         INSERT INTO checklist_attachments
-            (checklist_item_id, file_path, original_name, mime_type, file_size, uploaded_by, source_type)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+            (checklist_item_id, file_path, storage_key, original_name, mime_type, file_size, uploaded_by, source_type)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     ");
-    $stmt->bind_param("isssiis", $itemId, $destRel, $safeOrig, $mime, $size, $uploadedBy, $sourceType);
+    $stmt->bind_param("issssiis", $itemId, $filePath, $storageKey, $storedName, $storedMime, $storedSize, $uploadedBy, $sourceType);
     $stmt->execute();
     $stmt->close();
 
@@ -507,9 +552,12 @@ function bugcatcher_checklist_store_uploaded_file(
 
 function bugcatcher_checklist_delete_attachment(mysqli $conn, array $attachment): void
 {
-    $absolutePath = bugcatcher_checklist_upload_absolute_path($attachment['file_path']);
-    if ($absolutePath && is_file($absolutePath)) {
-        unlink($absolutePath);
+    bugcatcher_file_storage_ensure_schema($conn);
+    $storageKey = (string) ($attachment['storage_key'] ?? '');
+    if ($storageKey !== '') {
+        bugcatcher_file_storage_delete($storageKey);
+    } else {
+        bugcatcher_file_storage_delete_legacy_local(bugcatcher_checklist_upload_absolute_path($attachment['file_path']));
     }
 
     $stmt = $conn->prepare("DELETE FROM checklist_attachments WHERE id = ?");

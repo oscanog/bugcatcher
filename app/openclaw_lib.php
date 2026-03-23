@@ -521,17 +521,22 @@ function bugcatcher_openclaw_context_for_discord_user(mysqli $conn, string $disc
 
 function bugcatcher_openclaw_fetch_runtime_config(mysqli $conn): ?array
 {
+    bugcatcher_openclaw_runtime_config_ensure_schema($conn);
     $result = $conn->query("
         SELECT orc.*,
                creator.username AS created_by_name,
                updater.username AS updated_by_name,
                provider.display_name AS default_provider_name,
-               model.display_name AS default_model_name
+               model.display_name AS default_model_name,
+               ai_provider.display_name AS ai_chat_default_provider_name,
+               ai_model.display_name AS ai_chat_default_model_name
         FROM openclaw_runtime_config orc
         LEFT JOIN users creator ON creator.id = orc.created_by
         LEFT JOIN users updater ON updater.id = orc.updated_by
         LEFT JOIN ai_provider_configs provider ON provider.id = orc.default_provider_config_id
         LEFT JOIN ai_models model ON model.id = orc.default_model_id
+        LEFT JOIN ai_provider_configs ai_provider ON ai_provider.id = orc.ai_chat_default_provider_config_id
+        LEFT JOIN ai_models ai_model ON ai_model.id = orc.ai_chat_default_model_id
         ORDER BY orc.id DESC
         LIMIT 1
     ");
@@ -588,8 +593,14 @@ function bugcatcher_openclaw_save_runtime_config(
     string $discordBotToken,
     int $defaultProviderId,
     int $defaultModelId,
-    string $notes
+    string $notes,
+    bool $aiChatEnabled = true,
+    int $aiChatDefaultProviderId = 0,
+    int $aiChatDefaultModelId = 0,
+    string $aiChatAssistantName = '',
+    string $aiChatSystemPrompt = ''
 ): void {
+    bugcatcher_openclaw_runtime_config_ensure_schema($conn);
     $existing = bugcatcher_openclaw_fetch_runtime_config($conn);
     $encryptedToken = $existing['encrypted_discord_bot_token'] ?? null;
     if ($discordBotToken !== '') {
@@ -604,13 +615,33 @@ function bugcatcher_openclaw_save_runtime_config(
                 default_provider_config_id = NULLIF(?, 0),
                 default_model_id = NULLIF(?, 0),
                 notes = NULLIF(?, ''),
+                ai_chat_enabled = ?,
+                ai_chat_default_provider_config_id = NULLIF(?, 0),
+                ai_chat_default_model_id = NULLIF(?, 0),
+                ai_chat_assistant_name = NULLIF(?, ''),
+                ai_chat_system_prompt = NULLIF(?, ''),
                 updated_by = ?,
                 updated_at = NOW()
             WHERE id = ?
         ");
         $runtimeId = (int) $existing['id'];
         $enabled = $isEnabled ? 1 : 0;
-        $stmt->bind_param('isiisii', $enabled, $encryptedToken, $defaultProviderId, $defaultModelId, $notes, $actorUserId, $runtimeId);
+        $aiChatEnabledFlag = $aiChatEnabled ? 1 : 0;
+        $stmt->bind_param(
+            'isiisiiissii',
+            $enabled,
+            $encryptedToken,
+            $defaultProviderId,
+            $defaultModelId,
+            $notes,
+            $aiChatEnabledFlag,
+            $aiChatDefaultProviderId,
+            $aiChatDefaultModelId,
+            $aiChatAssistantName,
+            $aiChatSystemPrompt,
+            $actorUserId,
+            $runtimeId
+        );
         $stmt->execute();
         $stmt->close();
         bugcatcher_openclaw_mark_config_changed($conn, $actorUserId, 'runtime_config_saved');
@@ -619,11 +650,40 @@ function bugcatcher_openclaw_save_runtime_config(
 
     $stmt = $conn->prepare("
         INSERT INTO openclaw_runtime_config
-            (is_enabled, encrypted_discord_bot_token, default_provider_config_id, default_model_id, notes, created_by, updated_by, updated_at)
-        VALUES (?, ?, NULLIF(?, 0), NULLIF(?, 0), NULLIF(?, ''), ?, ?, NOW())
+            (
+                is_enabled,
+                encrypted_discord_bot_token,
+                default_provider_config_id,
+                default_model_id,
+                notes,
+                ai_chat_enabled,
+                ai_chat_default_provider_config_id,
+                ai_chat_default_model_id,
+                ai_chat_assistant_name,
+                ai_chat_system_prompt,
+                created_by,
+                updated_by,
+                updated_at
+            )
+        VALUES (?, ?, NULLIF(?, 0), NULLIF(?, 0), NULLIF(?, ''), ?, NULLIF(?, 0), NULLIF(?, 0), NULLIF(?, ''), NULLIF(?, ''), ?, ?, NOW())
     ");
     $enabled = $isEnabled ? 1 : 0;
-    $stmt->bind_param('isiisii', $enabled, $encryptedToken, $defaultProviderId, $defaultModelId, $notes, $actorUserId, $actorUserId);
+    $aiChatEnabledFlag = $aiChatEnabled ? 1 : 0;
+    $stmt->bind_param(
+        'isiisiiissii',
+        $enabled,
+        $encryptedToken,
+        $defaultProviderId,
+        $defaultModelId,
+        $notes,
+        $aiChatEnabledFlag,
+        $aiChatDefaultProviderId,
+        $aiChatDefaultModelId,
+        $aiChatAssistantName,
+        $aiChatSystemPrompt,
+        $actorUserId,
+        $actorUserId
+    );
     $stmt->execute();
     $stmt->close();
     bugcatcher_openclaw_mark_config_changed($conn, $actorUserId, 'runtime_config_created');
@@ -875,6 +935,7 @@ function bugcatcher_openclaw_delete_channel_binding(mysqli $conn, int $bindingId
 
 function bugcatcher_openclaw_effective_runtime_config(mysqli $conn): array
 {
+    bugcatcher_openclaw_seed_demo_ai_config($conn);
     $runtime = bugcatcher_openclaw_fetch_runtime_config($conn) ?: [];
     $providers = array_values(array_filter(
         bugcatcher_openclaw_fetch_providers($conn),
@@ -944,6 +1005,13 @@ function bugcatcher_openclaw_effective_runtime_config(mysqli $conn): array
             'default_model_id' => isset($runtime['default_model_id']) ? (int) $runtime['default_model_id'] : null,
             'notes' => (string) ($runtime['notes'] ?? ''),
             'discord_bot_token' => bugcatcher_openclaw_decrypt_secret($runtime['encrypted_discord_bot_token'] ?? ''),
+            'ai_chat' => [
+                'is_enabled' => (bool) ($runtime['ai_chat_enabled'] ?? false),
+                'default_provider_config_id' => isset($runtime['ai_chat_default_provider_config_id']) ? (int) $runtime['ai_chat_default_provider_config_id'] : null,
+                'default_model_id' => isset($runtime['ai_chat_default_model_id']) ? (int) $runtime['ai_chat_default_model_id'] : null,
+                'assistant_name' => (string) ($runtime['ai_chat_assistant_name'] ?? bugcatcher_config('AI_CHAT_DEFAULT_ASSISTANT_NAME', 'BugCatcher AI')),
+                'system_prompt' => (string) ($runtime['ai_chat_system_prompt'] ?? bugcatcher_config('AI_CHAT_DEFAULT_SYSTEM_PROMPT', '')),
+            ],
         ],
         'providers' => $serializedProviders,
         'models' => $serializedModels,
@@ -978,6 +1046,169 @@ function bugcatcher_openclaw_runtime_config_for_display(mysqli $conn): array
     unset($provider);
 
     return $snapshot;
+}
+
+function bugcatcher_openclaw_runtime_config_ensure_schema(mysqli $conn): void
+{
+    static $done = false;
+    if ($done) {
+        return;
+    }
+
+    $columns = [
+        'ai_chat_enabled' => "ALTER TABLE openclaw_runtime_config ADD COLUMN ai_chat_enabled TINYINT(1) NOT NULL DEFAULT 1 AFTER notes",
+        'ai_chat_default_provider_config_id' => "ALTER TABLE openclaw_runtime_config ADD COLUMN ai_chat_default_provider_config_id INT(11) DEFAULT NULL AFTER ai_chat_enabled",
+        'ai_chat_default_model_id' => "ALTER TABLE openclaw_runtime_config ADD COLUMN ai_chat_default_model_id INT(11) DEFAULT NULL AFTER ai_chat_default_provider_config_id",
+        'ai_chat_assistant_name' => "ALTER TABLE openclaw_runtime_config ADD COLUMN ai_chat_assistant_name VARCHAR(120) DEFAULT NULL AFTER ai_chat_default_model_id",
+        'ai_chat_system_prompt' => "ALTER TABLE openclaw_runtime_config ADD COLUMN ai_chat_system_prompt TEXT DEFAULT NULL AFTER ai_chat_assistant_name",
+    ];
+
+    foreach ($columns as $column => $sql) {
+        if (!bugcatcher_db_has_column($conn, 'openclaw_runtime_config', $column)) {
+            $conn->query($sql);
+        }
+    }
+
+    $done = true;
+}
+
+function bugcatcher_openclaw_find_provider_by_key(mysqli $conn, string $providerKey): ?array
+{
+    $stmt = $conn->prepare("SELECT * FROM ai_provider_configs WHERE provider_key = ? LIMIT 1");
+    $stmt->bind_param('s', $providerKey);
+    $stmt->execute();
+    $row = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    return $row ?: null;
+}
+
+function bugcatcher_openclaw_find_model_by_provider_and_remote_id(mysqli $conn, int $providerId, string $remoteModelId): ?array
+{
+    $stmt = $conn->prepare("SELECT * FROM ai_models WHERE provider_config_id = ? AND model_id = ? LIMIT 1");
+    $stmt->bind_param('is', $providerId, $remoteModelId);
+    $stmt->execute();
+    $row = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    return $row ?: null;
+}
+
+function bugcatcher_openclaw_seed_demo_ai_config(mysqli $conn): void
+{
+    static $done = false;
+    if ($done) {
+        return;
+    }
+
+    bugcatcher_openclaw_runtime_config_ensure_schema($conn);
+    $providerKey = trim((string) bugcatcher_config('AI_CHAT_DEMO_PROVIDER_KEY', 'deepseek'));
+    $providerName = trim((string) bugcatcher_config('AI_CHAT_DEMO_PROVIDER_NAME', 'DeepSeek'));
+    $providerType = trim((string) bugcatcher_config('AI_CHAT_DEMO_PROVIDER_TYPE', 'openai-compatible'));
+    $baseUrl = trim((string) bugcatcher_config('AI_CHAT_DEMO_PROVIDER_BASE_URL', 'https://api.deepseek.com'));
+    $apiKey = trim((string) bugcatcher_config('AI_CHAT_DEMO_API_KEY', ''));
+    $modelId = trim((string) bugcatcher_config('AI_CHAT_DEMO_MODEL_ID', 'deepseek-chat'));
+    $modelName = trim((string) bugcatcher_config('AI_CHAT_DEMO_MODEL_NAME', 'DeepSeek Chat'));
+    $supportsVision = (bool) bugcatcher_config('AI_CHAT_DEMO_MODEL_SUPPORTS_VISION', false);
+    $assistantName = trim((string) bugcatcher_config('AI_CHAT_DEFAULT_ASSISTANT_NAME', 'BugCatcher AI'));
+    $systemPrompt = trim((string) bugcatcher_config('AI_CHAT_DEFAULT_SYSTEM_PROMPT', ''));
+
+    if ($providerKey === '' || $providerName === '' || $providerType === '' || $modelId === '' || $modelName === '') {
+        $done = true;
+        return;
+    }
+
+    $actorId = 1;
+    $provider = bugcatcher_openclaw_find_provider_by_key($conn, $providerKey);
+    if (!$provider) {
+        bugcatcher_openclaw_save_provider(
+            $conn,
+            $actorId,
+            0,
+            $providerKey,
+            $providerName,
+            $providerType,
+            $baseUrl,
+            $apiKey,
+            true,
+            false
+        );
+        $provider = bugcatcher_openclaw_find_provider_by_key($conn, $providerKey);
+    } elseif ($apiKey !== '' && bugcatcher_openclaw_decrypt_secret($provider['encrypted_api_key'] ?? '') === '') {
+        bugcatcher_openclaw_save_provider(
+            $conn,
+            $actorId,
+            (int) $provider['id'],
+            $providerKey,
+            $providerName,
+            $providerType,
+            $baseUrl,
+            $apiKey,
+            true,
+            false
+        );
+        $provider = bugcatcher_openclaw_find_provider_by_key($conn, $providerKey);
+    }
+
+    if (!$provider) {
+        $done = true;
+        return;
+    }
+
+    $model = bugcatcher_openclaw_find_model_by_provider_and_remote_id($conn, (int) $provider['id'], $modelId);
+    if (!$model) {
+        bugcatcher_openclaw_save_model(
+            $conn,
+            (int) $provider['id'],
+            0,
+            $modelId,
+            $modelName,
+            $supportsVision,
+            false,
+            true,
+            true,
+            $actorId
+        );
+        $model = bugcatcher_openclaw_find_model_by_provider_and_remote_id($conn, (int) $provider['id'], $modelId);
+    }
+
+    $runtime = bugcatcher_openclaw_fetch_runtime_config($conn);
+    if (!$runtime) {
+        bugcatcher_openclaw_save_runtime_config(
+            $conn,
+            $actorId,
+            false,
+            '',
+            0,
+            0,
+            '',
+            (bool) bugcatcher_config('AI_CHAT_DEMO_ENABLED', true),
+            (int) $provider['id'],
+            (int) ($model['id'] ?? 0),
+            $assistantName,
+            $systemPrompt
+        );
+    } elseif (
+        !isset($runtime['ai_chat_default_provider_config_id'])
+        || (int) ($runtime['ai_chat_default_provider_config_id'] ?? 0) <= 0
+        || !isset($runtime['ai_chat_default_model_id'])
+        || (int) ($runtime['ai_chat_default_model_id'] ?? 0) <= 0
+    ) {
+        bugcatcher_openclaw_save_runtime_config(
+            $conn,
+            $actorId,
+            (bool) ($runtime['is_enabled'] ?? false),
+            '',
+            (int) ($runtime['default_provider_config_id'] ?? 0),
+            (int) ($runtime['default_model_id'] ?? 0),
+            (string) ($runtime['notes'] ?? ''),
+            (bool) ($runtime['ai_chat_enabled'] ?? bugcatcher_config('AI_CHAT_DEMO_ENABLED', true)),
+            (int) $provider['id'],
+            (int) ($model['id'] ?? 0),
+            (string) ($runtime['ai_chat_assistant_name'] ?? $assistantName),
+            (string) ($runtime['ai_chat_system_prompt'] ?? $systemPrompt)
+        );
+    }
+
+    $done = true;
 }
 
 function bugcatcher_openclaw_record_runtime_status(mysqli $conn, array $payload): array
@@ -1095,6 +1326,7 @@ function bugcatcher_openclaw_store_batch_attachment(
     ?int $uploadedBy,
     string $sourceType = 'bot'
 ): bool {
+    bugcatcher_file_storage_ensure_schema($conn);
     $allowed = bugcatcher_checklist_allowed_mime_map();
     if ($size <= 0 || !is_file($tmpPath)) {
         return false;
@@ -1114,22 +1346,24 @@ function bugcatcher_openclaw_store_batch_attachment(
         return false;
     }
 
-    $uploadDir = bugcatcher_checklist_ensure_upload_dir();
     $safeOrig = preg_replace('/[^a-zA-Z0-9._-]/', '_', $originalName);
-    $newName = "batch_{$batchId}_" . bin2hex(random_bytes(8)) . '.' . $allowed[$mime]['ext'];
-    $destAbs = $uploadDir . DIRECTORY_SEPARATOR . $newName;
-    $destRel = bugcatcher_checklist_upload_relative_path($newName);
-
-    if (!bugcatcher_checklist_move_server_file($tmpPath, $destAbs)) {
+    try {
+        $stored = bugcatcher_file_storage_upload_file($tmpPath, $safeOrig, $mime, $size, 'openclaw-batch');
+    } catch (Throwable $e) {
         return false;
     }
+    $filePath = (string) $stored['file_path'];
+    $storageKey = (string) ($stored['storage_key'] ?? '');
+    $storedName = (string) ($stored['original_name'] ?? $safeOrig);
+    $storedMime = (string) ($stored['mime_type'] ?? $mime);
+    $storedSize = (int) ($stored['file_size'] ?? $size);
 
     $stmt = $conn->prepare("
         INSERT INTO checklist_batch_attachments
-            (checklist_batch_id, file_path, original_name, mime_type, file_size, uploaded_by, source_type)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+            (checklist_batch_id, file_path, storage_key, original_name, mime_type, file_size, uploaded_by, source_type)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     ");
-    $stmt->bind_param('isssiis', $batchId, $destRel, $safeOrig, $mime, $size, $uploadedBy, $sourceType);
+    $stmt->bind_param('issssiis', $batchId, $filePath, $storageKey, $storedName, $storedMime, $storedSize, $uploadedBy, $sourceType);
     $stmt->execute();
     $stmt->close();
 

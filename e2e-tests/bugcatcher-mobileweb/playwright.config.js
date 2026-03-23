@@ -3,12 +3,12 @@ const { cfg } = require("./src/config");
 
 module.exports = defineConfig({
   testDir: "./tests",
-  timeout: 120_000,
+  timeout: cfg.testTimeoutMs,
   expect: {
-    timeout: 15_000,
+    timeout: cfg.expectTimeoutMs,
   },
-  fullyParallel: false,
-  workers: 1,
+  fullyParallel: true,
+  workers: cfg.workers,
   reporter: [["list"]],
   use: {
     baseURL: cfg.baseUrl,
@@ -22,6 +22,6 @@ module.exports = defineConfig({
         cwd: cfg.mobileRepoPath,
         url: cfg.baseUrl,
         reuseExistingServer: true,
-        timeout: 120_000,
+        timeout: cfg.webServerTimeoutMs,
       },
 });

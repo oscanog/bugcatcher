@@ -50,7 +50,7 @@ async function loginByApi(request, roleKey) {
     data: {
       email: account.email,
       password: account.password,
-      active_org_id: 1,
+      active_org_id: cfg.orgId,
     },
   });
   expect(response.status()).toBe(200);
@@ -66,10 +66,10 @@ async function createIssueByApi(request, roleKey, title) {
       Authorization: `Bearer ${accessToken}`,
     },
     data: {
-      org_id: 1,
+      org_id: cfg.orgId,
       title,
       description: "Created by mobile web Playwright suite",
-      labels: [1],
+      labels: [cfg.labelId],
     },
   });
   expect(response.status()).toBe(201);
@@ -106,7 +106,7 @@ async function deleteIssueByApi(request, issueId) {
       Authorization: `Bearer ${accessToken}`,
     },
     data: {
-      org_id: 1,
+      org_id: cfg.orgId,
     },
   });
   expect([200, 404]).toContain(response.status());

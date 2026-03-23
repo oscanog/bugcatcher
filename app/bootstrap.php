@@ -24,6 +24,22 @@ function bugcatcher_default_config(): array
         'OPENCLAW_ENCRYPTION_KEY' => 'replace-with-32-byte-secret',
         'OPENCLAW_TEMP_UPLOAD_DIR' => dirname(__DIR__) . DIRECTORY_SEPARATOR . 'uploads' . DIRECTORY_SEPARATOR . 'openclaw-tmp',
         'OPENCLAW_LOG_LEVEL' => 'info',
+        'UPLOADTHING_TOKEN' => '',
+        'UPLOADTHING_ENABLED' => false,
+        'UPLOADTHING_BRIDGE_HOST' => '127.0.0.1',
+        'UPLOADTHING_BRIDGE_PORT' => 8091,
+        'UPLOADTHING_BRIDGE_INTERNAL_SHARED_SECRET' => 'replace-with-a-third-long-random-secret',
+        'AI_CHAT_DEMO_PROVIDER_KEY' => 'deepseek',
+        'AI_CHAT_DEMO_PROVIDER_NAME' => 'DeepSeek',
+        'AI_CHAT_DEMO_PROVIDER_TYPE' => 'openai-compatible',
+        'AI_CHAT_DEMO_PROVIDER_BASE_URL' => 'https://api.deepseek.com',
+        'AI_CHAT_DEMO_API_KEY' => '',
+        'AI_CHAT_DEMO_MODEL_ID' => 'deepseek-chat',
+        'AI_CHAT_DEMO_MODEL_NAME' => 'DeepSeek Chat',
+        'AI_CHAT_DEMO_MODEL_SUPPORTS_VISION' => false,
+        'AI_CHAT_DEMO_ENABLED' => true,
+        'AI_CHAT_DEFAULT_ASSISTANT_NAME' => 'BugCatcher AI',
+        'AI_CHAT_DEFAULT_SYSTEM_PROMPT' => 'You are BugCatcher AI. Help the team discuss bugs, tests, checklists, and project delivery clearly and practically.',
         'REALTIME_NOTIFICATIONS_ENABLED' => true,
         'REALTIME_NOTIFICATIONS_HOST' => '127.0.0.1',
         'REALTIME_NOTIFICATIONS_PORT' => 8090,
@@ -95,6 +111,46 @@ function bugcatcher_load_config(): array
     $config['OPENCLAW_ENCRYPTION_KEY'] = (string) ($config['OPENCLAW_ENCRYPTION_KEY'] ?? '');
     $config['OPENCLAW_TEMP_UPLOAD_DIR'] = rtrim((string) ($config['OPENCLAW_TEMP_UPLOAD_DIR'] ?? ''), "\\/");
     $config['OPENCLAW_LOG_LEVEL'] = (string) ($config['OPENCLAW_LOG_LEVEL'] ?? 'info');
+    $config['UPLOADTHING_TOKEN'] = trim((string) ($config['UPLOADTHING_TOKEN'] ?? ''));
+    $config['UPLOADTHING_ENABLED'] = filter_var(
+        $config['UPLOADTHING_ENABLED'] ?? false,
+        FILTER_VALIDATE_BOOLEAN,
+        FILTER_NULL_ON_FAILURE
+    );
+    if ($config['UPLOADTHING_ENABLED'] === null) {
+        $config['UPLOADTHING_ENABLED'] = false;
+    }
+    $config['UPLOADTHING_BRIDGE_HOST'] = trim((string) ($config['UPLOADTHING_BRIDGE_HOST'] ?? '127.0.0.1'));
+    if ($config['UPLOADTHING_BRIDGE_HOST'] === '') {
+        $config['UPLOADTHING_BRIDGE_HOST'] = '127.0.0.1';
+    }
+    $config['UPLOADTHING_BRIDGE_PORT'] = max(1, (int) ($config['UPLOADTHING_BRIDGE_PORT'] ?? 8091));
+    $config['UPLOADTHING_BRIDGE_INTERNAL_SHARED_SECRET'] = (string) ($config['UPLOADTHING_BRIDGE_INTERNAL_SHARED_SECRET'] ?? '');
+    $config['AI_CHAT_DEMO_PROVIDER_KEY'] = trim((string) ($config['AI_CHAT_DEMO_PROVIDER_KEY'] ?? 'deepseek'));
+    $config['AI_CHAT_DEMO_PROVIDER_NAME'] = trim((string) ($config['AI_CHAT_DEMO_PROVIDER_NAME'] ?? 'DeepSeek'));
+    $config['AI_CHAT_DEMO_PROVIDER_TYPE'] = trim((string) ($config['AI_CHAT_DEMO_PROVIDER_TYPE'] ?? 'openai-compatible'));
+    $config['AI_CHAT_DEMO_PROVIDER_BASE_URL'] = trim((string) ($config['AI_CHAT_DEMO_PROVIDER_BASE_URL'] ?? 'https://api.deepseek.com'));
+    $config['AI_CHAT_DEMO_API_KEY'] = trim((string) ($config['AI_CHAT_DEMO_API_KEY'] ?? ''));
+    $config['AI_CHAT_DEMO_MODEL_ID'] = trim((string) ($config['AI_CHAT_DEMO_MODEL_ID'] ?? 'deepseek-chat'));
+    $config['AI_CHAT_DEMO_MODEL_NAME'] = trim((string) ($config['AI_CHAT_DEMO_MODEL_NAME'] ?? 'DeepSeek Chat'));
+    $config['AI_CHAT_DEMO_MODEL_SUPPORTS_VISION'] = filter_var(
+        $config['AI_CHAT_DEMO_MODEL_SUPPORTS_VISION'] ?? false,
+        FILTER_VALIDATE_BOOLEAN,
+        FILTER_NULL_ON_FAILURE
+    );
+    if ($config['AI_CHAT_DEMO_MODEL_SUPPORTS_VISION'] === null) {
+        $config['AI_CHAT_DEMO_MODEL_SUPPORTS_VISION'] = false;
+    }
+    $config['AI_CHAT_DEMO_ENABLED'] = filter_var(
+        $config['AI_CHAT_DEMO_ENABLED'] ?? true,
+        FILTER_VALIDATE_BOOLEAN,
+        FILTER_NULL_ON_FAILURE
+    );
+    if ($config['AI_CHAT_DEMO_ENABLED'] === null) {
+        $config['AI_CHAT_DEMO_ENABLED'] = true;
+    }
+    $config['AI_CHAT_DEFAULT_ASSISTANT_NAME'] = trim((string) ($config['AI_CHAT_DEFAULT_ASSISTANT_NAME'] ?? 'BugCatcher AI'));
+    $config['AI_CHAT_DEFAULT_SYSTEM_PROMPT'] = trim((string) ($config['AI_CHAT_DEFAULT_SYSTEM_PROMPT'] ?? ''));
     $config['REALTIME_NOTIFICATIONS_ENABLED'] = filter_var(
         $config['REALTIME_NOTIFICATIONS_ENABLED'] ?? true,
         FILTER_VALIDATE_BOOLEAN,
@@ -378,3 +434,5 @@ function bugcatcher_openclaw_temp_dir(): string
 {
     return (string) bugcatcher_config('OPENCLAW_TEMP_UPLOAD_DIR');
 }
+
+require_once __DIR__ . '/file_storage_lib.php';
