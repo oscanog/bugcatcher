@@ -1,0 +1,197 @@
+# Backend GCloud Deploy Guide
+
+This guide is for teammates who need to deploy new BugCatcher backend changes to the production Google Compute Engine VM.
+
+As of March 24, 2026, the production VM used in this workspace is:
+
+- project: `tarlac-backup01`
+- zone: `asia-southeast1-c`
+- instance: `instance-20260218-175107`
+
+The backend deploy flow is release-based. Do not treat `/var/www/bugcatcher/current` like a normal long-lived git checkout.
+
+## Golden Rules
+
+- Push your backend changes to GitHub first. The server deploy pulls from the remote repo, not from your local machine.
+- Do not hot-edit production files unless it is an emergency.
+- Do not run a normal `git pull` inside `/var/www/bugcatcher/current` for the PHP app deploy. Use the release script instead.
+- If a deploy includes SQL changes, take a backup first and apply the migration carefully.
+- If frontend and backend must ship together, deploy the backend first, then deploy the mobileweb frontend.
+
+## Relevant Production Paths
+
+- app root: `/var/www/bugcatcher`
+- live symlink: `/var/www/bugcatcher/current`
+- release directories: `/var/www/bugcatcher/releases`
+- shared config: `/var/www/bugcatcher/shared/config.php`
+- shared uploads: `/var/www/bugcatcher/shared/uploads`
+- git mirror used by the release script: `/opt/bugcatcher/repo.git`
+
+## 1. Prepare the Change Locally
+
+Before touching production:
+
+1. Merge or push the branch/commit you want to deploy.
+2. Make sure the target ref exists on GitHub.
+3. If the deploy includes a migration, identify the exact SQL file under `infra/database/migrations/`.
+4. If the deploy changes OpenClaw or realtime notification service code, note that you may need a service restart after the main release.
+
+Use a tag, commit SHA, or branch name that already exists on `origin`.
+
+## 2. SSH Into the VM
+
+From your local machine:
+
+```powershell
+gcloud compute ssh instance-20260218-175107 --project tarlac-backup01 --zone asia-southeast1-c
+```
+
+Optional quick checks after login:
+
+```bash
+pwd
+readlink -f /var/www/bugcatcher/current
+ls -1 /var/www/bugcatcher/releases | tail
+```
+
+## 3. Apply Database Migration If Needed
+
+Only do this when the deploy actually includes a new SQL migration.
+
+First, take a backup if the change is risky:
+
+```bash
+sudo -i
+cd /var/www/bugcatcher/current
+DB_PASS='your-db-password' bash infra/deploy/backup_nightly.sh
+```
+
+Then apply the migration. Example:
+
+```bash
+cd /var/www/bugcatcher/current
+sudo mysql bug_catcher < infra/database/migrations/20260315_password_reset_requests.sql
+```
+
+Notes:
+
+- Use the exact migration file for the change you are shipping.
+- Prefer migrations that are backward-compatible with the currently running code during the short deploy window.
+- Do not re-import `schema.sql` on production for an incremental release.
+
+## 4. Deploy the Backend Release
+
+Run the release script from the current checkout:
+
+```bash
+cd /var/www/bugcatcher/current
+sudo bash infra/deploy/deploy_release.sh <git-ref>
+```
+
+Example:
+
+```bash
+cd /var/www/bugcatcher/current
+sudo bash infra/deploy/deploy_release.sh main
+```
+
+What this script does:
+
+- fetches the latest refs from the mirror at `/opt/bugcatcher/repo.git`
+- creates a new timestamped directory under `/var/www/bugcatcher/releases`
+- extracts the requested git ref into that release directory
+- re-links shared uploads
+- lint-checks PHP files
+- repoints `/var/www/bugcatcher/current`
+- reloads PHP-FPM and nginx
+
+## 5. Verify the Deploy
+
+Confirm the live symlink moved:
+
+```bash
+readlink -f /var/www/bugcatcher/current
+ls -1 /var/www/bugcatcher/releases | tail
+```
+
+Check the main site and API health through nginx locally on the VM:
+
+```bash
+curl -skI https://127.0.0.1/ -H "Host: bugcatcher.online" | head -n 5
+curl -sk https://127.0.0.1/api/v1/health -H "Host: bugcatcher.online"
+```
+
+Expected result:
+
+- the homepage request returns `HTTP/1.1 200 OK` or an expected redirect
+- the health endpoint returns a JSON success payload with `status` set to `ok`
+
+## 6. Restart Extra Services Only If Your Change Touched Them
+
+### OpenClaw
+
+If your deploy changed `services/openclaw/`, restart it:
+
+```bash
+sudo systemctl restart openclaw.service
+sudo systemctl status openclaw.service --no-pager -l
+```
+
+### Realtime Notifications
+
+If your deploy changed `services/realtime-notifications/`, redeploy that service too:
+
+```bash
+cd /var/www/bugcatcher/current
+sudo bash scripts/deploy-realtime-notifications.sh
+```
+
+Important:
+
+- the realtime notifications unit currently points at `/var/www/bugcatcher/services/realtime-notifications`
+- the main PHP app uses the `/var/www/bugcatcher/current` release symlink
+- if production still has an older direct-checkout layout for this service, verify the unit paths before changing them
+
+## Rollback
+
+Roll back to the previous backend release:
+
+```bash
+cd /var/www/bugcatcher/current
+sudo bash infra/deploy/rollback_release.sh
+```
+
+Roll back to a specific release directory:
+
+```bash
+cd /var/www/bugcatcher/current
+sudo bash infra/deploy/rollback_release.sh 20260302153000
+```
+
+After rollback, re-run the same verification commands from the previous section.
+
+## Troubleshooting
+
+### `deploy_release.sh` says the git mirror is missing
+
+The VM bootstrap is incomplete. The mirror should exist at `/opt/bugcatcher/repo.git`.
+
+### The release deployed but the app still looks old
+
+Check the live symlink:
+
+```bash
+readlink -f /var/www/bugcatcher/current
+```
+
+Then verify nginx and PHP-FPM reloaded correctly.
+
+### The deploy needs config changes
+
+Production runtime config is loaded from:
+
+```text
+/var/www/bugcatcher/shared/config.php
+```
+
+Do not store production secrets in the repo.
