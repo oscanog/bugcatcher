@@ -76,6 +76,92 @@ function bc_v1_orgs_members_get(mysqli $conn, array $params): void
     ]);
 }
 
+function bc_v1_orgs_members_post(mysqli $conn, array $params): void
+{
+    bc_v1_require_method(['POST']);
+    $actor = bc_v1_actor($conn, true);
+    bc_v1_require_super_admin($actor);
+
+    $orgId = ctype_digit((string) ($params['id'] ?? '')) ? (int) $params['id'] : 0;
+    if ($orgId <= 0) {
+        bc_v1_json_error(422, 'invalid_org', 'Organization id is invalid.');
+    }
+
+    $org = bc_v1_org_context($conn, $actor, $orgId);
+    $payload = bc_v1_request_data();
+
+    $username = trim((string) ($payload['username'] ?? ''));
+    $email = trim((string) ($payload['email'] ?? ''));
+    $password = (string) ($payload['password'] ?? '');
+    $confirm = (string) ($payload['confirm_password'] ?? $payload['cpass'] ?? '');
+    $orgRole = trim((string) ($payload['org_role'] ?? 'member'));
+
+    if ($username === '' || $email === '' || $password === '' || $confirm === '') {
+        bc_v1_json_error(422, 'validation_error', 'username, email, password, and confirm_password are required.');
+    }
+    if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        bc_v1_json_error(422, 'invalid_email', 'Email must be a valid email address.');
+    }
+    if ($password !== $confirm) {
+        bc_v1_json_error(422, 'password_mismatch', 'Password does not match.');
+    }
+
+    $assignableRoles = array_values(array_filter(BC_V1_ORG_ROLES, static fn (string $role): bool => $role !== 'owner'));
+    if (!in_array($orgRole, $assignableRoles, true)) {
+        bc_v1_json_error(422, 'invalid_role', 'Invalid organization role selected.');
+    }
+
+    $check = $conn->prepare("SELECT id, username, email FROM users WHERE email = ? OR username = ? LIMIT 1");
+    $check->bind_param('ss', $email, $username);
+    $check->execute();
+    $existing = $check->get_result()->fetch_assoc();
+    $check->close();
+
+    if ($existing) {
+        if (strcasecmp((string) ($existing['email'] ?? ''), $email) === 0) {
+            bc_v1_json_error(409, 'email_exists', 'This email is already used. Try another one.');
+        }
+        bc_v1_json_error(409, 'username_exists', 'This username is already used. Try another one.');
+    }
+
+    $hash = password_hash($password, PASSWORD_DEFAULT);
+    $conn->begin_transaction();
+
+    try {
+        $insertUser = $conn->prepare("INSERT INTO users (username, email, password, role, last_active_org_id) VALUES (?, ?, ?, 'user', ?)");
+        $insertUser->bind_param('sssi', $username, $email, $hash, $orgId);
+        $insertUser->execute();
+        $userId = (int) $conn->insert_id;
+        $insertUser->close();
+
+        $insertMember = $conn->prepare("INSERT INTO org_members (org_id, user_id, role) VALUES (?, ?, ?)");
+        $insertMember->bind_param('iis', $orgId, $userId, $orgRole);
+        $insertMember->execute();
+        $insertMember->close();
+
+        $conn->commit();
+    } catch (Throwable $e) {
+        $conn->rollback();
+        bc_v1_json_error(500, 'create_member_failed', 'Unable to create the new user.', $e->getMessage());
+    }
+
+    bc_v1_json_success([
+        'created' => true,
+        'org_id' => $orgId,
+        'user_id' => $userId,
+        'member' => [
+            'user_id' => $userId,
+            'username' => $username,
+            'email' => $email,
+            'system_role' => 'user',
+            'org_role' => $orgRole,
+            'is_owner' => false,
+            'joined_at' => date('Y-m-d H:i:s'),
+        ],
+        'message' => 'New user created for ' . (string) ($org['org_name'] ?? 'the organization') . '.',
+    ], 201);
+}
+
 function bc_v1_orgs_get(mysqli $conn, array $params): void
 {
     bc_v1_require_method(['GET']);

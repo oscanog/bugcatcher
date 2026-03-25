@@ -5,15 +5,10 @@
 -- Usage:
 --   mysql -u root -p < local_dev_full.sql
 --
--- Default login users (all share password): DevPass123!
---   superadmin@local.dev (super_admin)
---   admin@local.dev      (admin)
---   pm@local.dev         (user; org role Project Manager)
---   senior@local.dev     (user; org role Senior Developer)
---   junior@local.dev     (user; org role Junior Developer)
---   qa@local.dev         (user; org role QA Tester)
---   seniorqa@local.dev   (user; org role Senior QA)
---   qalead@local.dev     (user; org role QA Lead)
+-- Default login users are seeded under organization: GJC_team
+-- Shared password for all seeded users: BugCatcherProd!20260323
+-- Note: org_members allows only one role per user per organization, so
+-- 52310851@gendejesus.edu.ph is seeded as Project Manager only.
 -- -----------------------------------------------------------------------------
 
 SET NAMES utf8mb4;
@@ -685,19 +680,24 @@ INSERT INTO labels (id, name, description, color) VALUES
   (8, 'question', 'Further information is requested', '#d876e3'),
   (9, 'wontfix', 'This will not be worked on', '#000000');
 
--- bcrypt hash for: DevPass123!
+-- bcrypt hash for: BugCatcherProd!20260323
 INSERT INTO users (id, username, email, password, role, last_active_org_id) VALUES
-  (1, 'superadmin', 'superadmin@local.dev', '$2y$10$Orczv8/nxdbpV70GaimDc.ylQthAweZsg3Re4lSg592QVmWEAPVk.', 'super_admin', 1),
-  (2, 'admin', 'admin@local.dev', '$2y$10$Orczv8/nxdbpV70GaimDc.ylQthAweZsg3Re4lSg592QVmWEAPVk.', 'admin', 1),
-  (3, 'pm', 'pm@local.dev', '$2y$10$Orczv8/nxdbpV70GaimDc.ylQthAweZsg3Re4lSg592QVmWEAPVk.', 'user', 1),
-  (4, 'senior', 'senior@local.dev', '$2y$10$Orczv8/nxdbpV70GaimDc.ylQthAweZsg3Re4lSg592QVmWEAPVk.', 'user', 1),
-  (5, 'junior', 'junior@local.dev', '$2y$10$Orczv8/nxdbpV70GaimDc.ylQthAweZsg3Re4lSg592QVmWEAPVk.', 'user', 1),
-  (6, 'qa', 'qa@local.dev', '$2y$10$Orczv8/nxdbpV70GaimDc.ylQthAweZsg3Re4lSg592QVmWEAPVk.', 'user', 1),
-  (7, 'seniorqa', 'seniorqa@local.dev', '$2y$10$Orczv8/nxdbpV70GaimDc.ylQthAweZsg3Re4lSg592QVmWEAPVk.', 'user', 1),
-  (8, 'qalead', 'qalead@local.dev', '$2y$10$Orczv8/nxdbpV70GaimDc.ylQthAweZsg3Re4lSg592QVmWEAPVk.', 'user', 1);
+  (1, 'm.viner001', 'm.viner001@gmail.com', '$2y$10$dSBKjvwGygMql4uX6I5MS.my.ABsX2C3KZ25C9Fmuli3YHNYmw.li', 'super_admin', 1),
+  (2, 'mackrafanan9247', 'mackrafanan9247@gmail.com', '$2y$10$dSBKjvwGygMql4uX6I5MS.my.ABsX2C3KZ25C9Fmuli3YHNYmw.li', 'admin', 1),
+  (3, '52310851', '52310851@gendejesus.edu.ph', '$2y$10$dSBKjvwGygMql4uX6I5MS.my.ABsX2C3KZ25C9Fmuli3YHNYmw.li', 'user', 1),
+  (4, '52310826', '52310826@gendejesus.edu.ph', '$2y$10$dSBKjvwGygMql4uX6I5MS.my.ABsX2C3KZ25C9Fmuli3YHNYmw.li', 'user', 1),
+  (5, 'oscar.nogoy08', 'oscar.nogoy08@gmail.com', '$2y$10$dSBKjvwGygMql4uX6I5MS.my.ABsX2C3KZ25C9Fmuli3YHNYmw.li', 'user', 1),
+  (6, '52310085', '52310085@gendejesus.edu.ph', '$2y$10$dSBKjvwGygMql4uX6I5MS.my.ABsX2C3KZ25C9Fmuli3YHNYmw.li', 'user', 1),
+  (7, '52310225', '52310225@gendejesus.edu.ph', '$2y$10$dSBKjvwGygMql4uX6I5MS.my.ABsX2C3KZ25C9Fmuli3YHNYmw.li', 'user', 1),
+  (8, 'emmanuelmagnosulit', 'emmanuelmagnosulit@gmail.com', '$2y$10$dSBKjvwGygMql4uX6I5MS.my.ABsX2C3KZ25C9Fmuli3YHNYmw.li', 'user', 1),
+  (9, '52311077', '52311077@gendejesus.edu.ph', '$2y$10$dSBKjvwGygMql4uX6I5MS.my.ABsX2C3KZ25C9Fmuli3YHNYmw.li', 'user', 1),
+  (10, '32212218', '32212218@gendejesus.edu.ph', '$2y$10$dSBKjvwGygMql4uX6I5MS.my.ABsX2C3KZ25C9Fmuli3YHNYmw.li', 'user', 1),
+  (11, '52310668', '52310668@gendejesus.edu.ph', '$2y$10$dSBKjvwGygMql4uX6I5MS.my.ABsX2C3KZ25C9Fmuli3YHNYmw.li', 'user', 1),
+  (12, 'gemmueldelacruz', 'gemmueldelacruz@gmail.com', '$2y$10$dSBKjvwGygMql4uX6I5MS.my.ABsX2C3KZ25C9Fmuli3YHNYmw.li', 'user', 1),
+  (13, 'bulletlangto', 'bulletlangto@gmail.com', '$2y$10$dSBKjvwGygMql4uX6I5MS.my.ABsX2C3KZ25C9Fmuli3YHNYmw.li', 'user', 1);
 
 INSERT INTO organizations (id, name, owner_id) VALUES
-  (1, 'Local Dev Org', 1);
+  (1, 'GJC_team', 1);
 
 INSERT INTO org_members (org_id, user_id, role) VALUES
   (1, 1, 'owner'),
@@ -707,7 +707,12 @@ INSERT INTO org_members (org_id, user_id, role) VALUES
   (1, 5, 'Junior Developer'),
   (1, 6, 'QA Tester'),
   (1, 7, 'Senior QA'),
-  (1, 8, 'QA Lead');
+  (1, 8, 'QA Lead'),
+  (1, 9, 'QA Tester'),
+  (1, 10, 'QA Tester'),
+  (1, 11, 'QA Tester'),
+  (1, 12, 'Senior Developer'),
+  (1, 13, 'Junior Developer');
 
 INSERT INTO projects (id, org_id, name, code, description, status, created_by, updated_by) VALUES
   (1, 1, 'Website Revamp', 'WEB-REVAMP', 'Primary local dev project', 'active', 3, 3),

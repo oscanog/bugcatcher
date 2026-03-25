@@ -43,6 +43,7 @@ function bc_v1_routes(): array
 
         ['method' => 'GET', 'pattern' => '/orgs', 'handler' => 'bc_v1_orgs_get'],
         ['method' => 'POST', 'pattern' => '/orgs', 'handler' => 'bc_v1_orgs_post'],
+        ['method' => 'POST', 'pattern' => '/orgs/{id}/members', 'handler' => 'bc_v1_orgs_members_post'],
         ['method' => 'GET', 'pattern' => '/orgs/{id}/members', 'handler' => 'bc_v1_orgs_members_get'],
         ['method' => 'POST', 'pattern' => '/orgs/{id}/join', 'handler' => 'bc_v1_orgs_join_post'],
         ['method' => 'POST', 'pattern' => '/orgs/{id}/leave', 'handler' => 'bc_v1_orgs_leave_post'],
