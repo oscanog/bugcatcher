@@ -3,6 +3,7 @@
 return [
     'APP_ENV' => 'development',
     'APP_BASE_URL' => 'http://localhost/bugcatcher',
+    'APP_TIMEZONE' => 'Asia/Singapore',
     'DB_HOST' => '127.0.0.1',
     'DB_PORT' => 3306,
     'DB_NAME' => 'bug_catcher',

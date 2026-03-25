@@ -23,7 +23,7 @@ const BC_V1_ORG_ROLES = [
 function bc_v1_json_success(array $data, int $statusCode = 200): void
 {
     http_response_code($statusCode);
-    echo json_encode(['ok' => true, 'data' => $data]);
+    echo json_encode(['ok' => true, 'data' => bugcatcher_augment_datetime_iso_fields($data)]);
     exit;
 }
 

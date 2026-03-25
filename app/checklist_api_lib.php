@@ -7,7 +7,7 @@ function checklist_api_json_response(int $statusCode, array $data): void
     http_response_code($statusCode);
     echo json_encode([
         'ok' => true,
-        'data' => $data,
+        'data' => bugcatcher_augment_datetime_iso_fields($data),
     ]);
     exit;
 }

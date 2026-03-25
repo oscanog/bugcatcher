@@ -18,7 +18,16 @@ type NotificationRecord = {
   title: string;
   body: string;
   link_path: string;
+  created_at: string;
+  created_at_iso?: string | null;
   read_at: string | null;
+  read_at_iso?: string | null;
+};
+
+type IssueDetail = {
+  id: number;
+  created_at: string;
+  created_at_iso?: string | null;
 };
 
 let api: APIRequestContext;
@@ -81,6 +90,7 @@ test("notifications list, mark-read, mark-all-read, and issue deep links work", 
   expect(createdNotification).toBeTruthy();
   expect(createdNotification?.body).toContain(issue.title);
   expect(createdNotification?.read_at).toBeNull();
+  expect(createdNotification?.created_at_iso).toMatch(/(?:Z|[+-]\d{2}:\d{2})$/);
 
   const markRead = await apiPostJson<ApiEnvelope<{ notification: NotificationRecord }>>(
     api,
@@ -91,6 +101,16 @@ test("notifications list, mark-read, mark-all-read, and issue deep links work", 
   expect(markRead.res.status()).toBe(200);
   expectApiSuccess(markRead.body);
   expect(markRead.body.data.notification.read_at).not.toBeNull();
+  expect(markRead.body.data.notification.read_at_iso).toMatch(/(?:Z|[+-]\d{2}:\d{2})$/);
+
+  const issueDetail = await apiGet<ApiEnvelope<{ issue: IssueDetail }>>(
+    api,
+    `${cfg.apiBasePath}/issues/${issue.id}?org_id=${cfg.orgId}`,
+    authHeaders(pm)
+  );
+  expect(issueDetail.res.status()).toBe(200);
+  expectApiSuccess(issueDetail.body);
+  expect(issueDetail.body.data.issue.created_at_iso).toMatch(/(?:Z|[+-]\d{2}:\d{2})$/);
 
   const assigned = await apiPostJson<ApiEnvelope<{ issue: Issue }>>(
     api,

@@ -9,6 +9,7 @@ function bugcatcher_default_config(): array
 {
     return [
         'APP_ENV' => 'development',
+        'APP_TIMEZONE' => 'Asia/Singapore',
         'APP_BASE_URL' => 'http://localhost',
         'DB_HOST' => '127.0.0.1',
         'DB_PORT' => 3306,
@@ -101,6 +102,17 @@ function bugcatcher_load_config(): array
         break;
     }
 
+    $config['APP_TIMEZONE'] = trim((string) ($config['APP_TIMEZONE'] ?? 'Asia/Singapore'));
+    if ($config['APP_TIMEZONE'] === '') {
+        $config['APP_TIMEZONE'] = 'Asia/Singapore';
+    }
+    try {
+        new DateTimeZone($config['APP_TIMEZONE']);
+    } catch (Throwable $exception) {
+        $config['APP_TIMEZONE'] = 'Asia/Singapore';
+    }
+    date_default_timezone_set($config['APP_TIMEZONE']);
+
     $config['DB_PORT'] = (int) ($config['DB_PORT'] ?? 3306);
     $config['UPLOADS_URL'] = trim(str_replace('\\', '/', (string) ($config['UPLOADS_URL'] ?? 'uploads/issues')), '/');
     $config['UPLOADS_DIR'] = rtrim((string) ($config['UPLOADS_DIR'] ?? ''), "\\/");
@@ -188,6 +200,102 @@ function bugcatcher_config(?string $key = null, $default = null)
     }
 
     return $config[$key] ?? $default;
+}
+
+function bugcatcher_timezone_name(): string
+{
+    return (string) bugcatcher_config('APP_TIMEZONE', 'Asia/Singapore');
+}
+
+function bugcatcher_timezone(): DateTimeZone
+{
+    static $timezone = null;
+
+    if (!$timezone instanceof DateTimeZone) {
+        $timezone = new DateTimeZone(bugcatcher_timezone_name());
+    }
+
+    return $timezone;
+}
+
+function bugcatcher_timezone_offset_string(?int $timestamp = null): string
+{
+    $unixTimestamp = $timestamp ?? time();
+    $date = new DateTimeImmutable('@' . $unixTimestamp);
+    return $date->setTimezone(bugcatcher_timezone())->format('P');
+}
+
+function bugcatcher_parse_datetime_value($value): ?DateTimeImmutable
+{
+    if ($value instanceof DateTimeInterface) {
+        return DateTimeImmutable::createFromInterface($value)->setTimezone(bugcatcher_timezone());
+    }
+
+    if ($value === null) {
+        return null;
+    }
+
+    $text = trim((string) $value);
+    if ($text === '') {
+        return null;
+    }
+
+    $timezone = bugcatcher_timezone();
+    if (preg_match('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/', $text)) {
+        $date = DateTimeImmutable::createFromFormat('Y-m-d H:i:s', $text, $timezone);
+        if ($date instanceof DateTimeImmutable) {
+            return $date;
+        }
+    }
+
+    if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $text)) {
+        $date = DateTimeImmutable::createFromFormat('Y-m-d', $text, $timezone);
+        if ($date instanceof DateTimeImmutable) {
+            return $date;
+        }
+    }
+
+    try {
+        return new DateTimeImmutable($text, $timezone);
+    } catch (Throwable $exception) {
+        return null;
+    }
+}
+
+function bugcatcher_datetime_iso8601($value): ?string
+{
+    $date = bugcatcher_parse_datetime_value($value);
+    if (!$date instanceof DateTimeImmutable) {
+        return null;
+    }
+
+    return $date->setTimezone(bugcatcher_timezone())->format(DateTimeInterface::ATOM);
+}
+
+function bugcatcher_augment_datetime_iso_fields(array $value): array
+{
+    $result = [];
+
+    foreach ($value as $key => $item) {
+        $normalizedItem = is_array($item) ? bugcatcher_augment_datetime_iso_fields($item) : $item;
+        $result[$key] = $normalizedItem;
+
+        if (!is_string($key) || !str_ends_with($key, '_at') || str_ends_with($key, '_at_iso')) {
+            continue;
+        }
+
+        $isoKey = $key . '_iso';
+        if (array_key_exists($isoKey, $value)) {
+            $result[$isoKey] = is_array($value[$isoKey])
+                ? bugcatcher_augment_datetime_iso_fields($value[$isoKey])
+                : $value[$isoKey];
+            continue;
+        }
+
+        $result[$isoKey] = bugcatcher_datetime_iso8601($item);
+    }
+
+    return $result;
 }
 
 function bugcatcher_base_url(): string
@@ -330,6 +438,10 @@ function bugcatcher_db_connection(): mysqli
     }
 
     $conn->set_charset('utf8mb4');
+    $timezoneOffset = $conn->real_escape_string(bugcatcher_timezone_offset_string());
+    if (!$conn->query("SET time_zone = '{$timezoneOffset}'")) {
+        throw new RuntimeException('Unable to set database session timezone.');
+    }
     return $conn;
 }
 
