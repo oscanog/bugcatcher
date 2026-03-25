@@ -33,7 +33,7 @@ function bugcatcher_ai_chat_ensure_schema(mysqli $conn): void
 
     bugcatcher_checklist_ensure_schema($conn);
     bugcatcher_file_storage_ensure_schema($conn);
-    bugcatcher_openclaw_seed_demo_ai_config($conn);
+    bugcatcher_ai_admin_seed_default_config($conn);
 
     $conn->query("
         CREATE TABLE IF NOT EXISTS ai_chat_threads (
@@ -561,55 +561,7 @@ function bugcatcher_ai_chat_upsert_thread_context(mysqli $conn, int $threadId, a
 
 function bugcatcher_ai_chat_resolve_runtime(mysqli $conn): array
 {
-    $runtime = bugcatcher_openclaw_fetch_runtime_config($conn);
-    if (!$runtime || !(bool) ($runtime['ai_chat_enabled'] ?? false)) {
-        throw new RuntimeException('AI chat is disabled right now.');
-    }
-
-    $providerId = (int) ($runtime['ai_chat_default_provider_config_id'] ?? 0);
-    $modelId = (int) ($runtime['ai_chat_default_model_id'] ?? 0);
-    if ($providerId <= 0 || $modelId <= 0) {
-        throw new RuntimeException('AI chat is not configured correctly. Go to Super Admin > OpenClaw > AI Chat settings.');
-    }
-
-    $stmt = $conn->prepare("
-        SELECT *
-        FROM ai_provider_configs
-        WHERE id = ? AND is_enabled = 1
-        LIMIT 1
-    ");
-    $stmt->bind_param('i', $providerId);
-    $stmt->execute();
-    $provider = $stmt->get_result()->fetch_assoc();
-    $stmt->close();
-
-    $stmt = $conn->prepare("
-        SELECT *
-        FROM ai_models
-        WHERE id = ? AND is_enabled = 1
-        LIMIT 1
-    ");
-    $stmt->bind_param('i', $modelId);
-    $stmt->execute();
-    $model = $stmt->get_result()->fetch_assoc();
-    $stmt->close();
-
-    $apiKey = bugcatcher_openclaw_decrypt_secret($provider['encrypted_api_key'] ?? '');
-    if (!$provider || !$model || trim($apiKey) === '') {
-        throw new RuntimeException('AI chat is not configured correctly. Go to Super Admin > OpenClaw > AI Chat settings.');
-    }
-    if (!(bool) ($model['supports_vision'] ?? false)) {
-        throw new RuntimeException('The configured AI model must support image analysis for checklist drafting.');
-    }
-
-    return [
-        'runtime' => $runtime,
-        'provider' => $provider,
-        'model' => $model,
-        'api_key' => $apiKey,
-        'assistant_name' => trim((string) ($runtime['ai_chat_assistant_name'] ?? bugcatcher_config('AI_CHAT_DEFAULT_ASSISTANT_NAME', 'BugCatcher AI'))),
-        'system_prompt' => trim((string) ($runtime['ai_chat_system_prompt'] ?? bugcatcher_config('AI_CHAT_DEFAULT_SYSTEM_PROMPT', ''))),
-    ];
+    return bugcatcher_ai_admin_resolve_runtime($conn);
 }
 
 function bugcatcher_ai_chat_has_image_context(mysqli $conn, int $threadId): bool
@@ -794,7 +746,7 @@ function bugcatcher_ai_chat_friendly_provider_error(int $statusCode, string $res
     }
 
     if ($statusCode === 401 || $statusCode === 403 || stripos($message, 'api key') !== false || stripos($message, 'authentication') !== false) {
-        return 'AI chat is not configured correctly. Go to Super Admin > OpenClaw > AI Chat settings.';
+        return 'AI chat is not configured correctly. Go to Super Admin > AI.';
     }
 
     return $message !== '' ? $message : 'AI chat could not complete the reply. Please try again.';

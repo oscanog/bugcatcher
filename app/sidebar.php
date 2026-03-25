@@ -5,10 +5,8 @@ require_once __DIR__ . '/bootstrap.php';
 function bugcatcher_sidebar_href(string $activePage): string
 {
     switch ($activePage) {
-        case 'discord_link':
-            return bugcatcher_path('discord-link.php');
         case 'super_admin':
-            return bugcatcher_path('super-admin/openclaw.php');
+            return bugcatcher_path('super-admin/ai.php');
         case 'projects':
             return bugcatcher_path('melvin/project_list.php');
         case 'checklist':
@@ -34,10 +32,9 @@ function bugcatcher_render_sidebar(
         'organization' => ['label' => 'Organization', 'href' => bugcatcher_path('zen/organization.php')],
         'projects' => ['label' => 'Projects', 'href' => bugcatcher_path('melvin/project_list.php')],
         'checklist' => ['label' => 'Checklist', 'href' => bugcatcher_path('melvin/checklist_list.php')],
-        'discord_link' => ['label' => 'Discord Link', 'href' => bugcatcher_path('discord-link.php')],
     ];
     if (bugcatcher_is_super_admin_role($currentRole)) {
-        $nav['super_admin'] = ['label' => 'Super Admin', 'href' => bugcatcher_path('super-admin/openclaw.php')];
+        $nav['super_admin'] = ['label' => 'AI Admin', 'href' => bugcatcher_path('super-admin/ai.php')];
     }
     ?>
     <button

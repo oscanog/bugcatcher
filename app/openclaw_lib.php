@@ -3,21 +3,6 @@
 require_once __DIR__ . '/bootstrap.php';
 require_once __DIR__ . '/checklist_lib.php';
 
-const BUGCATCHER_OPENCLAW_DOCS_DIR = __DIR__ . '/../docs/openclaw';
-const BUGCATCHER_OPENCLAW_DOC_ORDER = [
-    'README.md',
-    'architecture.md',
-    'self-setup-runbook.md',
-    'discord-setup.md',
-    'provider-setup.md',
-    'server-setup.md',
-    'super-admin-account.md',
-    'user-guide.md',
-    'admin-guide.md',
-    'api.md',
-    'implementation-handoff.md',
-];
-
 function bugcatcher_require_super_admin(string $role): void
 {
     if (!bugcatcher_is_super_admin_role($role)) {
@@ -348,6 +333,10 @@ function bugcatcher_openclaw_resolve_temp_file(string $token): ?string
 
 function bugcatcher_openclaw_store_link_code(mysqli $conn, int $userId, string $code): void
 {
+    if (!bugcatcher_db_has_table($conn, 'discord_user_links')) {
+        throw new RuntimeException('Discord account linking has been removed.');
+    }
+
     $hash = bugcatcher_openclaw_hash_code($code);
     $expiresAt = date('Y-m-d H:i:s', time() + 600);
     $stmt = $conn->prepare("
@@ -366,6 +355,10 @@ function bugcatcher_openclaw_store_link_code(mysqli $conn, int $userId, string $
 
 function bugcatcher_openclaw_fetch_user_link_by_user(mysqli $conn, int $userId): ?array
 {
+    if (!bugcatcher_db_has_table($conn, 'discord_user_links')) {
+        return null;
+    }
+
     $stmt = $conn->prepare("
         SELECT dul.*, u.username, u.email
         FROM discord_user_links dul
@@ -382,6 +375,10 @@ function bugcatcher_openclaw_fetch_user_link_by_user(mysqli $conn, int $userId):
 
 function bugcatcher_openclaw_fetch_user_link_by_discord_user(mysqli $conn, string $discordUserId): ?array
 {
+    if (!bugcatcher_db_has_table($conn, 'discord_user_links')) {
+        return null;
+    }
+
     $stmt = $conn->prepare("
         SELECT dul.*, u.username, u.email
         FROM discord_user_links dul
@@ -398,6 +395,10 @@ function bugcatcher_openclaw_fetch_user_link_by_discord_user(mysqli $conn, strin
 
 function bugcatcher_openclaw_fetch_user_link_by_valid_code(mysqli $conn, string $code): ?array
 {
+    if (!bugcatcher_db_has_table($conn, 'discord_user_links')) {
+        return null;
+    }
+
     $hash = bugcatcher_openclaw_hash_code($code);
     $now = date('Y-m-d H:i:s');
     $stmt = $conn->prepare("
@@ -421,6 +422,10 @@ function bugcatcher_openclaw_confirm_link(
     string $discordUsername,
     string $discordGlobalName
 ): void {
+    if (!bugcatcher_db_has_table($conn, 'discord_user_links')) {
+        throw new RuntimeException('Discord account linking has been removed.');
+    }
+
     $linkedAt = date('Y-m-d H:i:s');
     $stmt = $conn->prepare("
         INSERT INTO discord_user_links
@@ -443,6 +448,10 @@ function bugcatcher_openclaw_confirm_link(
 
 function bugcatcher_openclaw_unlink_user(mysqli $conn, int $userId): void
 {
+    if (!bugcatcher_db_has_table($conn, 'discord_user_links')) {
+        throw new RuntimeException('Discord account linking has been removed.');
+    }
+
     $stmt = $conn->prepare("
         UPDATE discord_user_links
         SET discord_user_id = NULL,
@@ -461,6 +470,10 @@ function bugcatcher_openclaw_unlink_user(mysqli $conn, int $userId): void
 
 function bugcatcher_openclaw_touch_user_link(mysqli $conn, int $linkId): void
 {
+    if (!bugcatcher_db_has_table($conn, 'discord_user_links')) {
+        return;
+    }
+
     $now = date('Y-m-d H:i:s');
     $stmt = $conn->prepare("UPDATE discord_user_links SET last_seen_at = ? WHERE id = ?");
     $stmt->bind_param('si', $now, $linkId);
@@ -527,16 +540,12 @@ function bugcatcher_openclaw_fetch_runtime_config(mysqli $conn): ?array
                creator.username AS created_by_name,
                updater.username AS updated_by_name,
                provider.display_name AS default_provider_name,
-               model.display_name AS default_model_name,
-               ai_provider.display_name AS ai_chat_default_provider_name,
-               ai_model.display_name AS ai_chat_default_model_name
+               model.display_name AS default_model_name
         FROM openclaw_runtime_config orc
         LEFT JOIN users creator ON creator.id = orc.created_by
         LEFT JOIN users updater ON updater.id = orc.updated_by
         LEFT JOIN ai_provider_configs provider ON provider.id = orc.default_provider_config_id
         LEFT JOIN ai_models model ON model.id = orc.default_model_id
-        LEFT JOIN ai_provider_configs ai_provider ON ai_provider.id = orc.ai_chat_default_provider_config_id
-        LEFT JOIN ai_models ai_model ON ai_model.id = orc.ai_chat_default_model_id
         ORDER BY orc.id DESC
         LIMIT 1
     ");
@@ -602,46 +611,21 @@ function bugcatcher_openclaw_save_runtime_config(
 ): void {
     bugcatcher_openclaw_runtime_config_ensure_schema($conn);
     $existing = bugcatcher_openclaw_fetch_runtime_config($conn);
-    $encryptedToken = $existing['encrypted_discord_bot_token'] ?? null;
-    if ($discordBotToken !== '') {
-        $encryptedToken = bugcatcher_openclaw_encrypt_secret($discordBotToken);
-    }
 
     if ($existing) {
         $stmt = $conn->prepare("
             UPDATE openclaw_runtime_config
             SET is_enabled = ?,
-                encrypted_discord_bot_token = ?,
                 default_provider_config_id = NULLIF(?, 0),
                 default_model_id = NULLIF(?, 0),
                 notes = NULLIF(?, ''),
-                ai_chat_enabled = ?,
-                ai_chat_default_provider_config_id = NULLIF(?, 0),
-                ai_chat_default_model_id = NULLIF(?, 0),
-                ai_chat_assistant_name = NULLIF(?, ''),
-                ai_chat_system_prompt = NULLIF(?, ''),
                 updated_by = ?,
                 updated_at = NOW()
             WHERE id = ?
         ");
         $runtimeId = (int) $existing['id'];
         $enabled = $isEnabled ? 1 : 0;
-        $aiChatEnabledFlag = $aiChatEnabled ? 1 : 0;
-        $stmt->bind_param(
-            'isiisiiissii',
-            $enabled,
-            $encryptedToken,
-            $defaultProviderId,
-            $defaultModelId,
-            $notes,
-            $aiChatEnabledFlag,
-            $aiChatDefaultProviderId,
-            $aiChatDefaultModelId,
-            $aiChatAssistantName,
-            $aiChatSystemPrompt,
-            $actorUserId,
-            $runtimeId
-        );
+        $stmt->bind_param('iiisii', $enabled, $defaultProviderId, $defaultModelId, $notes, $actorUserId, $runtimeId);
         $stmt->execute();
         $stmt->close();
         bugcatcher_openclaw_mark_config_changed($conn, $actorUserId, 'runtime_config_saved');
@@ -652,38 +636,17 @@ function bugcatcher_openclaw_save_runtime_config(
         INSERT INTO openclaw_runtime_config
             (
                 is_enabled,
-                encrypted_discord_bot_token,
                 default_provider_config_id,
                 default_model_id,
                 notes,
-                ai_chat_enabled,
-                ai_chat_default_provider_config_id,
-                ai_chat_default_model_id,
-                ai_chat_assistant_name,
-                ai_chat_system_prompt,
                 created_by,
                 updated_by,
                 updated_at
             )
-        VALUES (?, ?, NULLIF(?, 0), NULLIF(?, 0), NULLIF(?, ''), ?, NULLIF(?, 0), NULLIF(?, 0), NULLIF(?, ''), NULLIF(?, ''), ?, ?, NOW())
+        VALUES (?, NULLIF(?, 0), NULLIF(?, 0), NULLIF(?, ''), ?, ?, NOW())
     ");
     $enabled = $isEnabled ? 1 : 0;
-    $aiChatEnabledFlag = $aiChatEnabled ? 1 : 0;
-    $stmt->bind_param(
-        'isiisiiissii',
-        $enabled,
-        $encryptedToken,
-        $defaultProviderId,
-        $defaultModelId,
-        $notes,
-        $aiChatEnabledFlag,
-        $aiChatDefaultProviderId,
-        $aiChatDefaultModelId,
-        $aiChatAssistantName,
-        $aiChatSystemPrompt,
-        $actorUserId,
-        $actorUserId
-    );
+    $stmt->bind_param('iiisii', $enabled, $defaultProviderId, $defaultModelId, $notes, $actorUserId, $actorUserId);
     $stmt->execute();
     $stmt->close();
     bugcatcher_openclaw_mark_config_changed($conn, $actorUserId, 'runtime_config_created');
@@ -862,6 +825,10 @@ function bugcatcher_openclaw_delete_model(mysqli $conn, int $modelId, ?int $acto
 
 function bugcatcher_openclaw_fetch_channel_bindings(mysqli $conn): array
 {
+    if (!bugcatcher_db_has_table($conn, 'discord_channel_bindings')) {
+        return [];
+    }
+
     $result = $conn->query("
         SELECT dcb.*,
                creator.username AS created_by_name,
@@ -885,6 +852,10 @@ function bugcatcher_openclaw_save_channel_binding(
     bool $isEnabled,
     bool $allowDmFollowup
 ): void {
+    if (!bugcatcher_db_has_table($conn, 'discord_channel_bindings')) {
+        throw new RuntimeException('Discord channel bindings have been removed.');
+    }
+
     if (trim($guildId) === '' || trim($channelId) === '') {
         throw new RuntimeException('Guild ID and channel ID are required.');
     }
@@ -926,6 +897,10 @@ function bugcatcher_openclaw_save_channel_binding(
 
 function bugcatcher_openclaw_delete_channel_binding(mysqli $conn, int $bindingId, ?int $actorUserId = null): void
 {
+    if (!bugcatcher_db_has_table($conn, 'discord_channel_bindings')) {
+        throw new RuntimeException('Discord channel bindings have been removed.');
+    }
+
     $stmt = $conn->prepare("DELETE FROM discord_channel_bindings WHERE id = ?");
     $stmt->bind_param('i', $bindingId);
     $stmt->execute();
@@ -937,6 +912,7 @@ function bugcatcher_openclaw_effective_runtime_config(mysqli $conn): array
 {
     bugcatcher_openclaw_seed_demo_ai_config($conn);
     $runtime = bugcatcher_openclaw_fetch_runtime_config($conn) ?: [];
+    $aiRuntime = bugcatcher_ai_admin_fetch_runtime_config($conn) ?: [];
     $providers = array_values(array_filter(
         bugcatcher_openclaw_fetch_providers($conn),
         static function (array $provider): bool {
@@ -947,12 +923,6 @@ function bugcatcher_openclaw_effective_runtime_config(mysqli $conn): array
         bugcatcher_openclaw_fetch_models($conn),
         static function (array $model): bool {
             return (int) ($model['is_enabled'] ?? 0) === 1;
-        }
-    ));
-    $channels = array_values(array_filter(
-        bugcatcher_openclaw_fetch_channel_bindings($conn),
-        static function (array $channel): bool {
-            return (int) ($channel['is_enabled'] ?? 0) === 1;
         }
     ));
     $control = bugcatcher_openclaw_fetch_control_plane_state($conn);
@@ -985,18 +955,6 @@ function bugcatcher_openclaw_effective_runtime_config(mysqli $conn): array
         ];
     }, $models);
 
-    $serializedChannels = array_map(static function (array $channel): array {
-        return [
-            'id' => (int) $channel['id'],
-            'guild_id' => (string) $channel['guild_id'],
-            'guild_name' => (string) ($channel['guild_name'] ?? ''),
-            'channel_id' => (string) $channel['channel_id'],
-            'channel_name' => (string) ($channel['channel_name'] ?? ''),
-            'is_enabled' => true,
-            'allow_dm_followup' => (bool) ($channel['allow_dm_followup'] ?? false),
-        ];
-    }, $channels);
-
     return [
         'config_version' => (string) ($control['config_version'] ?? bugcatcher_openclaw_config_version_now()),
         'runtime' => [
@@ -1004,18 +962,18 @@ function bugcatcher_openclaw_effective_runtime_config(mysqli $conn): array
             'default_provider_config_id' => isset($runtime['default_provider_config_id']) ? (int) $runtime['default_provider_config_id'] : null,
             'default_model_id' => isset($runtime['default_model_id']) ? (int) $runtime['default_model_id'] : null,
             'notes' => (string) ($runtime['notes'] ?? ''),
-            'discord_bot_token' => bugcatcher_openclaw_decrypt_secret($runtime['encrypted_discord_bot_token'] ?? ''),
+            'discord_bot_token' => '',
             'ai_chat' => [
-                'is_enabled' => (bool) ($runtime['ai_chat_enabled'] ?? false),
-                'default_provider_config_id' => isset($runtime['ai_chat_default_provider_config_id']) ? (int) $runtime['ai_chat_default_provider_config_id'] : null,
-                'default_model_id' => isset($runtime['ai_chat_default_model_id']) ? (int) $runtime['ai_chat_default_model_id'] : null,
-                'assistant_name' => (string) ($runtime['ai_chat_assistant_name'] ?? bugcatcher_config('AI_CHAT_DEFAULT_ASSISTANT_NAME', 'BugCatcher AI')),
-                'system_prompt' => (string) ($runtime['ai_chat_system_prompt'] ?? bugcatcher_config('AI_CHAT_DEFAULT_SYSTEM_PROMPT', '')),
+                'is_enabled' => (bool) ($aiRuntime['is_enabled'] ?? bugcatcher_config('AI_CHAT_DEMO_ENABLED', true)),
+                'default_provider_config_id' => isset($aiRuntime['default_provider_config_id']) ? (int) $aiRuntime['default_provider_config_id'] : null,
+                'default_model_id' => isset($aiRuntime['default_model_id']) ? (int) $aiRuntime['default_model_id'] : null,
+                'assistant_name' => (string) ($aiRuntime['assistant_name'] ?? bugcatcher_config('AI_CHAT_DEFAULT_ASSISTANT_NAME', 'BugCatcher AI')),
+                'system_prompt' => (string) ($aiRuntime['system_prompt'] ?? bugcatcher_config('AI_CHAT_DEFAULT_SYSTEM_PROMPT', '')),
             ],
         ],
         'providers' => $serializedProviders,
         'models' => $serializedModels,
-        'channels' => $serializedChannels,
+        'channels' => [],
         'pending_reload_request' => $pendingReload ? [
             'id' => (int) $pendingReload['id'],
             'reason' => (string) ($pendingReload['reason'] ?? ''),
@@ -1055,20 +1013,6 @@ function bugcatcher_openclaw_runtime_config_ensure_schema(mysqli $conn): void
         return;
     }
 
-    $columns = [
-        'ai_chat_enabled' => "ALTER TABLE openclaw_runtime_config ADD COLUMN ai_chat_enabled TINYINT(1) NOT NULL DEFAULT 1 AFTER notes",
-        'ai_chat_default_provider_config_id' => "ALTER TABLE openclaw_runtime_config ADD COLUMN ai_chat_default_provider_config_id INT(11) DEFAULT NULL AFTER ai_chat_enabled",
-        'ai_chat_default_model_id' => "ALTER TABLE openclaw_runtime_config ADD COLUMN ai_chat_default_model_id INT(11) DEFAULT NULL AFTER ai_chat_default_provider_config_id",
-        'ai_chat_assistant_name' => "ALTER TABLE openclaw_runtime_config ADD COLUMN ai_chat_assistant_name VARCHAR(120) DEFAULT NULL AFTER ai_chat_default_model_id",
-        'ai_chat_system_prompt' => "ALTER TABLE openclaw_runtime_config ADD COLUMN ai_chat_system_prompt TEXT DEFAULT NULL AFTER ai_chat_assistant_name",
-    ];
-
-    foreach ($columns as $column => $sql) {
-        if (!bugcatcher_db_has_column($conn, 'openclaw_runtime_config', $column)) {
-            $conn->query($sql);
-        }
-    }
-
     $done = true;
 }
 
@@ -1100,136 +1044,36 @@ function bugcatcher_openclaw_seed_demo_ai_config(mysqli $conn): void
     }
 
     bugcatcher_openclaw_runtime_config_ensure_schema($conn);
-    $providerKey = trim((string) bugcatcher_config('AI_CHAT_DEMO_PROVIDER_KEY', 'deepseek'));
-    $providerName = trim((string) bugcatcher_config('AI_CHAT_DEMO_PROVIDER_NAME', 'DeepSeek'));
-    $providerType = trim((string) bugcatcher_config('AI_CHAT_DEMO_PROVIDER_TYPE', 'openai-compatible'));
-    $baseUrl = trim((string) bugcatcher_config('AI_CHAT_DEMO_PROVIDER_BASE_URL', 'https://api.deepseek.com'));
-    $apiKey = trim((string) bugcatcher_config('AI_CHAT_DEMO_API_KEY', ''));
-    $modelId = trim((string) bugcatcher_config('AI_CHAT_DEMO_MODEL_ID', 'deepseek-chat'));
-    $modelName = trim((string) bugcatcher_config('AI_CHAT_DEMO_MODEL_NAME', 'DeepSeek Chat'));
-    $supportsVision = (bool) bugcatcher_config('AI_CHAT_DEMO_MODEL_SUPPORTS_VISION', false);
-    $assistantName = trim((string) bugcatcher_config('AI_CHAT_DEFAULT_ASSISTANT_NAME', 'BugCatcher AI'));
-    $systemPrompt = trim((string) bugcatcher_config('AI_CHAT_DEFAULT_SYSTEM_PROMPT', ''));
-
-    if ($providerKey === '' || $providerName === '' || $providerType === '' || $modelId === '' || $modelName === '') {
-        $done = true;
-        return;
-    }
-
-    $actorId = 1;
-    $provider = bugcatcher_openclaw_find_provider_by_key($conn, $providerKey);
-    if (!$provider) {
-        bugcatcher_openclaw_save_provider(
-            $conn,
-            $actorId,
-            0,
-            $providerKey,
-            $providerName,
-            $providerType,
-            $baseUrl,
-            $apiKey,
-            true,
-            false
-        );
-        $provider = bugcatcher_openclaw_find_provider_by_key($conn, $providerKey);
-    } elseif (
-        trim((string) ($provider['display_name'] ?? '')) !== $providerName
-        || trim((string) ($provider['provider_type'] ?? '')) !== $providerType
-        || trim((string) ($provider['base_url'] ?? '')) !== $baseUrl
-        || !(bool) ($provider['is_enabled'] ?? false)
-        || ($apiKey !== '' && bugcatcher_openclaw_decrypt_secret($provider['encrypted_api_key'] ?? '') !== $apiKey)
-    ) {
-        bugcatcher_openclaw_save_provider(
-            $conn,
-            $actorId,
-            (int) $provider['id'],
-            $providerKey,
-            $providerName,
-            $providerType,
-            $baseUrl,
-            $apiKey,
-            true,
-            false
-        );
-        $provider = bugcatcher_openclaw_find_provider_by_key($conn, $providerKey);
-    }
-
-    if (!$provider) {
-        $done = true;
-        return;
-    }
-
-    $model = bugcatcher_openclaw_find_model_by_provider_and_remote_id($conn, (int) $provider['id'], $modelId);
-    if (!$model) {
-        bugcatcher_openclaw_save_model(
-            $conn,
-            (int) $provider['id'],
-            0,
-            $modelId,
-            $modelName,
-            $supportsVision,
-            false,
-            true,
-            true,
-            $actorId
-        );
-        $model = bugcatcher_openclaw_find_model_by_provider_and_remote_id($conn, (int) $provider['id'], $modelId);
-    } elseif (
-        trim((string) ($model['display_name'] ?? '')) !== $modelName
-        || (bool) ($model['supports_vision'] ?? false) !== $supportsVision
-        || !(bool) ($model['is_enabled'] ?? false)
-        || !(bool) ($model['is_default'] ?? false)
-    ) {
-        bugcatcher_openclaw_save_model(
-            $conn,
-            (int) $provider['id'],
-            (int) $model['id'],
-            $modelId,
-            $modelName,
-            $supportsVision,
-            (bool) ($model['supports_json_output'] ?? false),
-            true,
-            true,
-            $actorId
-        );
-        $model = bugcatcher_openclaw_find_model_by_provider_and_remote_id($conn, (int) $provider['id'], $modelId);
-    }
+    bugcatcher_ai_admin_seed_default_config($conn);
 
     $runtime = bugcatcher_openclaw_fetch_runtime_config($conn);
+    $aiRuntime = bugcatcher_ai_admin_fetch_runtime_config($conn);
+    $providerId = (int) ($aiRuntime['default_provider_config_id'] ?? 0);
+    $modelId = (int) ($aiRuntime['default_model_id'] ?? 0);
+    $actorId = 1;
+
     if (!$runtime) {
         bugcatcher_openclaw_save_runtime_config(
             $conn,
             $actorId,
             false,
             '',
-            0,
-            0,
-            '',
-            (bool) bugcatcher_config('AI_CHAT_DEMO_ENABLED', true),
-            (int) $provider['id'],
-            (int) ($model['id'] ?? 0),
-            $assistantName,
-            $systemPrompt
+            $providerId,
+            $modelId,
+            ''
         );
     } elseif (
-        !isset($runtime['ai_chat_default_provider_config_id'])
-        || (int) ($runtime['ai_chat_default_provider_config_id'] ?? 0) <= 0
-        || !isset($runtime['ai_chat_default_model_id'])
-        || (int) ($runtime['ai_chat_default_model_id'] ?? 0) <= 0
+        (int) ($runtime['default_provider_config_id'] ?? 0) <= 0
+        || (int) ($runtime['default_model_id'] ?? 0) <= 0
     ) {
         bugcatcher_openclaw_save_runtime_config(
             $conn,
             $actorId,
             (bool) ($runtime['is_enabled'] ?? false),
             '',
-            (int) ($runtime['default_provider_config_id'] ?? 0),
-            (int) ($runtime['default_model_id'] ?? 0),
-            (string) ($runtime['notes'] ?? ''),
-            (bool) ($runtime['ai_chat_enabled'] ?? bugcatcher_config('AI_CHAT_DEMO_ENABLED', true)),
-            (int) $provider['id'],
-            (int) ($model['id'] ?? 0),
-            (string) ($runtime['ai_chat_assistant_name'] ?? $assistantName),
-            (string) ($runtime['ai_chat_system_prompt'] ?? $systemPrompt)
+            $providerId,
+            $modelId,
+            (string) ($runtime['notes'] ?? '')
         );
     }
 
@@ -1298,32 +1142,29 @@ function bugcatcher_openclaw_fetch_recent_requests(mysqli $conn, int $limit = 25
                u.username AS requested_by_name,
                p.name AS project_name,
                o.name AS org_name,
-               cb.title AS submitted_batch_title,
-               dul.discord_username,
-               dul.discord_global_name
+               cb.title AS submitted_batch_title
         FROM openclaw_requests `or`
         LEFT JOIN users u ON u.id = `or`.requested_by_user_id
         LEFT JOIN projects p ON p.id = `or`.selected_project_id
         LEFT JOIN organizations o ON o.id = `or`.selected_org_id
         LEFT JOIN checklist_batches cb ON cb.id = `or`.submitted_batch_id
-        LEFT JOIN discord_user_links dul ON dul.id = `or`.discord_user_link_id
         ORDER BY `or`.created_at DESC, `or`.id DESC
         LIMIT {$limit}
     ");
-    return $result ? $result->fetch_all(MYSQLI_ASSOC) : [];
+    $rows = $result ? $result->fetch_all(MYSQLI_ASSOC) : [];
+
+    foreach ($rows as &$row) {
+        $row['discord_username'] = null;
+        $row['discord_global_name'] = null;
+    }
+    unset($row);
+
+    return $rows;
 }
 
 function bugcatcher_openclaw_fetch_linked_users(mysqli $conn, int $limit = 100): array
 {
-    $limit = max(1, min(250, $limit));
-    $result = $conn->query("
-        SELECT dul.*, u.username, u.email
-        FROM discord_user_links dul
-        JOIN users u ON u.id = dul.user_id
-        ORDER BY dul.linked_at DESC, dul.id DESC
-        LIMIT {$limit}
-    ");
-    return $result ? $result->fetch_all(MYSQLI_ASSOC) : [];
+    return [];
 }
 
 function bugcatcher_openclaw_fetch_batch_attachments(mysqli $conn, int $batchId): array
@@ -1500,25 +1341,19 @@ function bugcatcher_openclaw_create_batch_from_payload(mysqli $conn, array $payl
     $orgId = ctype_digit((string) ($payload['org_id'] ?? '')) ? (int) $payload['org_id'] : 0;
     $projectId = ctype_digit((string) ($payload['project_id'] ?? '')) ? (int) $payload['project_id'] : 0;
     $requestedByUserId = ctype_digit((string) ($payload['requested_by_user_id'] ?? '')) ? (int) $payload['requested_by_user_id'] : 0;
-    $discordUserId = trim((string) ($payload['discord_user_id'] ?? ''));
     $requestId = ctype_digit((string) ($payload['openclaw_request_id'] ?? '')) ? (int) $payload['openclaw_request_id'] : 0;
     $batchPayload = is_array($payload['batch'] ?? null) ? $payload['batch'] : [];
     $itemsPayload = is_array($payload['items'] ?? null) ? $payload['items'] : [];
     $attachmentsPayload = is_array($payload['batch_attachments'] ?? null) ? $payload['batch_attachments'] : [];
 
-    if ($orgId <= 0 || $projectId <= 0 || $requestedByUserId <= 0 || $discordUserId === '' || !$batchPayload || !$itemsPayload) {
-        throw new RuntimeException('org_id, project_id, requested_by_user_id, discord_user_id, batch, and items are required.');
+    if ($orgId <= 0 || $projectId <= 0 || $requestedByUserId <= 0 || !$batchPayload || !$itemsPayload) {
+        throw new RuntimeException('org_id, project_id, requested_by_user_id, batch, and items are required.');
     }
     if (count($itemsPayload) > 200) {
         throw new RuntimeException('Max batch size is 200 items.');
     }
     if (count($attachmentsPayload) < 1) {
         throw new RuntimeException('At least one image attachment is required.');
-    }
-
-    $link = bugcatcher_openclaw_fetch_user_link_by_discord_user($conn, $discordUserId);
-    if (!$link || (int) $link['user_id'] !== $requestedByUserId) {
-        throw new RuntimeException('The Discord user is not linked to the requested BugCatcher account.');
     }
 
     $project = bugcatcher_checklist_fetch_project($conn, $orgId, $projectId);
@@ -1556,7 +1391,7 @@ function bugcatcher_openclaw_create_batch_from_payload(mysqli $conn, array $payl
             INSERT INTO checklist_batches
                 (org_id, project_id, title, module_name, submodule_name, source_type, source_channel, source_reference,
                  status, created_by, updated_by, assigned_qa_lead_id, notes)
-            VALUES (?, ?, ?, ?, NULLIF(?, ''), 'bot', 'discord', NULLIF(?, ''), 'open', ?, ?, NULLIF(?, 0), NULLIF(?, ''))
+            VALUES (?, ?, ?, ?, NULLIF(?, ''), 'bot', 'api', NULLIF(?, ''), 'open', ?, ?, NULLIF(?, 0), NULLIF(?, ''))
         ");
         $stmt->bind_param(
             'iissssiiis',
@@ -1709,111 +1544,4 @@ function bugcatcher_openclaw_health_snapshot(mysqli $conn): array
         'last_discord_error' => $status['last_discord_error'] ?? null,
         'pending_reload_request_id' => $pendingReload['id'] ?? null,
     ];
-}
-
-function bugcatcher_openclaw_docs_files(): array
-{
-    $docs = [];
-    foreach (BUGCATCHER_OPENCLAW_DOC_ORDER as $file) {
-        $path = BUGCATCHER_OPENCLAW_DOCS_DIR . DIRECTORY_SEPARATOR . $file;
-        if (is_file($path)) {
-            $docs[$file] = $path;
-        }
-    }
-    return $docs;
-}
-
-function bugcatcher_openclaw_doc_title(string $fileName): string
-{
-    $titles = [
-        'README.md' => 'Overview',
-        'architecture.md' => 'Architecture',
-        'self-setup-runbook.md' => 'Self Setup Runbook',
-        'discord-setup.md' => 'Discord Setup',
-        'provider-setup.md' => 'Provider Setup',
-        'server-setup.md' => 'Server Setup',
-        'super-admin-account.md' => 'Super Admin Account',
-        'user-guide.md' => 'User Guide',
-        'admin-guide.md' => 'Admin Guide',
-        'api.md' => 'API',
-        'implementation-handoff.md' => 'Implementation Handoff',
-    ];
-    return $titles[$fileName] ?? ucwords(str_replace(['-', '.md'], [' ', ''], strtolower($fileName)));
-}
-
-function bugcatcher_openclaw_render_markdown(string $markdown): string
-{
-    $lines = preg_split("/\\r\\n|\\r|\\n/", $markdown);
-    $html = [];
-    $inList = false;
-    $inCode = false;
-    $codeBuffer = [];
-
-    $flushList = static function () use (&$html, &$inList): void {
-        if ($inList) {
-            $html[] = '</ul>';
-            $inList = false;
-        }
-    };
-
-    foreach ($lines as $line) {
-        if (preg_match('/^```/', $line)) {
-            $flushList();
-            if ($inCode) {
-                $html[] = '<pre><code>' . htmlspecialchars(implode("\n", $codeBuffer), ENT_QUOTES, 'UTF-8') . '</code></pre>';
-                $codeBuffer = [];
-                $inCode = false;
-            } else {
-                $inCode = true;
-            }
-            continue;
-        }
-
-        if ($inCode) {
-            $codeBuffer[] = $line;
-            continue;
-        }
-
-        if (preg_match('/^\s*[-*]\s+(.+)$/', $line, $matches)) {
-            if (!$inList) {
-                $html[] = '<ul>';
-                $inList = true;
-            }
-            $html[] = '<li>' . bugcatcher_openclaw_render_markdown_inline($matches[1]) . '</li>';
-            continue;
-        }
-
-        $flushList();
-
-        if (preg_match('/^(#{1,4})\s+(.+)$/', $line, $matches)) {
-            $level = strlen($matches[1]);
-            $html[] = sprintf('<h%d>%s</h%d>', $level, bugcatcher_openclaw_render_markdown_inline($matches[2]), $level);
-            continue;
-        }
-
-        if (trim($line) === '') {
-            continue;
-        }
-
-        $html[] = '<p>' . bugcatcher_openclaw_render_markdown_inline($line) . '</p>';
-    }
-
-    if ($inList) {
-        $html[] = '</ul>';
-    }
-    if ($inCode) {
-        $html[] = '<pre><code>' . htmlspecialchars(implode("\n", $codeBuffer), ENT_QUOTES, 'UTF-8') . '</code></pre>';
-    }
-
-    return implode("\n", $html);
-}
-
-function bugcatcher_openclaw_render_markdown_inline(string $text): string
-{
-    $escaped = htmlspecialchars($text, ENT_QUOTES, 'UTF-8');
-    $escaped = preg_replace('/`([^`]+)`/', '<code>$1</code>', $escaped);
-    $escaped = preg_replace('/\*\*([^*]+)\*\*/', '<strong>$1</strong>', $escaped);
-    $escaped = preg_replace('/\*([^*]+)\*/', '<em>$1</em>', $escaped);
-    $escaped = preg_replace('/\[(.+?)\]\((.+?)\)/', '<a href="$2" target="_blank" rel="noopener">$1</a>', $escaped);
-    return $escaped;
 }

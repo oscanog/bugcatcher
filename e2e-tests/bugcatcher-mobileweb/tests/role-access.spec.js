@@ -5,51 +5,51 @@ const { allDrawerLabels, loginByUi, openDrawer } = require("./helpers");
 const roles = [
   {
     key: "superAdmin",
-    allowedDrawerLabels: ["Super Admin", "OpenClaw", "Checklist", "Discord Link", "Manage Users", "Settings", "Logout"],
+    allowedDrawerLabels: ["Super Admin", "AI Admin", "Checklist", "Manage Users", "Settings", "Logout"],
     blockedRoutes: [],
-    allowedRoutes: ["/app/discord-links", "/app/checklist"],
+    allowedRoutes: ["/app/ai-admin", "/app/checklist"],
   },
   {
     key: "admin",
-    allowedDrawerLabels: ["Discord Link", "Settings", "Logout"],
-    blockedRoutes: ["/app/super-admin", "/app/openclaw", "/app/manage-users", "/app/checklist"],
-    allowedRoutes: ["/app/discord-links"],
+    allowedDrawerLabels: ["Settings", "Logout"],
+    blockedRoutes: ["/app/super-admin", "/app/ai-admin", "/app/openclaw", "/app/manage-users", "/app/checklist"],
+    allowedRoutes: [],
   },
   {
     key: "pm",
-    allowedDrawerLabels: ["Checklist", "Discord Link", "Settings", "Logout"],
-    blockedRoutes: ["/app/super-admin", "/app/openclaw", "/app/manage-users"],
-    allowedRoutes: ["/app/discord-links", "/app/checklist"],
+    allowedDrawerLabels: ["Checklist", "Settings", "Logout"],
+    blockedRoutes: ["/app/super-admin", "/app/ai-admin", "/app/openclaw", "/app/manage-users"],
+    allowedRoutes: ["/app/checklist"],
   },
   {
     key: "seniorDev",
-    allowedDrawerLabels: ["Discord Link", "Settings", "Logout"],
-    blockedRoutes: ["/app/super-admin", "/app/openclaw", "/app/manage-users", "/app/checklist"],
-    allowedRoutes: ["/app/discord-links"],
+    allowedDrawerLabels: ["Settings", "Logout"],
+    blockedRoutes: ["/app/super-admin", "/app/ai-admin", "/app/openclaw", "/app/manage-users", "/app/checklist"],
+    allowedRoutes: [],
   },
   {
     key: "juniorDev",
-    allowedDrawerLabels: ["Discord Link", "Settings", "Logout"],
-    blockedRoutes: ["/app/super-admin", "/app/openclaw", "/app/manage-users", "/app/checklist"],
-    allowedRoutes: ["/app/discord-links"],
+    allowedDrawerLabels: ["Settings", "Logout"],
+    blockedRoutes: ["/app/super-admin", "/app/ai-admin", "/app/openclaw", "/app/manage-users", "/app/checklist"],
+    allowedRoutes: [],
   },
   {
     key: "qaTester",
-    allowedDrawerLabels: ["Discord Link", "Settings", "Logout"],
-    blockedRoutes: ["/app/super-admin", "/app/openclaw", "/app/manage-users", "/app/checklist"],
-    allowedRoutes: ["/app/discord-links"],
+    allowedDrawerLabels: ["Settings", "Logout"],
+    blockedRoutes: ["/app/super-admin", "/app/ai-admin", "/app/openclaw", "/app/manage-users", "/app/checklist"],
+    allowedRoutes: [],
   },
   {
     key: "seniorQa",
-    allowedDrawerLabels: ["Discord Link", "Settings", "Logout"],
-    blockedRoutes: ["/app/super-admin", "/app/openclaw", "/app/manage-users", "/app/checklist"],
-    allowedRoutes: ["/app/discord-links"],
+    allowedDrawerLabels: ["Settings", "Logout"],
+    blockedRoutes: ["/app/super-admin", "/app/ai-admin", "/app/openclaw", "/app/manage-users", "/app/checklist"],
+    allowedRoutes: [],
   },
   {
     key: "qaLead",
-    allowedDrawerLabels: ["Checklist", "Discord Link", "Settings", "Logout"],
-    blockedRoutes: ["/app/super-admin", "/app/openclaw", "/app/manage-users"],
-    allowedRoutes: ["/app/discord-links", "/app/checklist"],
+    allowedDrawerLabels: ["Checklist", "Settings", "Logout"],
+    blockedRoutes: ["/app/super-admin", "/app/ai-admin", "/app/openclaw", "/app/manage-users"],
+    allowedRoutes: ["/app/checklist"],
   },
 ];
 
@@ -82,7 +82,7 @@ for (const role of roles) {
       await page.goto("/app/super-admin");
       await expect(page).toHaveURL(/\/app\/super-admin$/);
       await page.goto("/app/openclaw");
-      await expect(page).toHaveURL(/\/app\/openclaw$/);
+      await expect(page).toHaveURL(/\/app\/ai-admin$/);
       await page.goto("/app/manage-users");
       await expect(page).toHaveURL(/\/app\/manage-users$/);
       return;

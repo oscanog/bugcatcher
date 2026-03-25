@@ -36,6 +36,7 @@ If this release includes the Cloudinary migration, make sure `/var/www/bugcatche
 - `CLOUDINARY_API_SECRET`
 - optional `CLOUDINARY_BASE_FOLDER` override if production should not use the default `bugcatcher`
 - optional temporary `UPLOADTHING_TOKEN` only if you still want best-effort cleanup for old UploadThing-hosted rows during the transition
+- `OPENCLAW_ENCRYPTION_KEY` so AI provider secrets remain decryptable in the AI Admin surface
 
 Do not commit those secrets to the repo.
 
@@ -46,7 +47,7 @@ Before touching production:
 1. Merge or push the branch/commit you want to deploy.
 2. Make sure the target ref exists on GitHub.
 3. If the deploy includes a migration, identify the exact SQL file under `infra/database/migrations/`.
-4. If the deploy changes OpenClaw or realtime notification service code, note that you may need a service restart after the main release.
+4. If the deploy changes realtime notification service code, note that you may need a service restart after the main release.
 
 Use a tag, commit SHA, or branch name that already exists on `origin`.
 
@@ -78,11 +79,12 @@ cd /var/www/bugcatcher/current
 DB_PASS='your-db-password' bash infra/deploy/backup_nightly.sh
 ```
 
-Then apply the migration. Example:
+Then apply the migration. Examples:
 
 ```bash
 cd /var/www/bugcatcher/current
 sudo mysql bug_catcher < infra/database/migrations/20260325_attachment_storage_providers.sql
+sudo mysql bug_catcher < infra/database/migrations/20260325_ai_runtime_split_and_discord_cleanup.sql
 ```
 
 Notes:
@@ -164,16 +166,15 @@ After the migration run:
 - open an AI chat thread with screenshots and confirm attachments still render
 - delete one migrated attachment-bearing record and confirm the row disappears without breaking the page
 
-## 8. Restart Extra Services Only If Your Change Touched Them
+## 8. Verify AI Admin If Needed
 
-### OpenClaw
+If this release includes the Discord retirement and AI Admin split:
 
-If your deploy changed `services/openclaw/`, restart it:
+- open `Super Admin > AI Admin` and confirm runtime, providers, and models load
+- verify the default provider/model still match production expectations after the backfill migration
+- open built-in AI chat and confirm the bootstrap request no longer points admins to OpenClaw
 
-```bash
-sudo systemctl restart openclaw.service
-sudo systemctl status openclaw.service --no-pager -l
-```
+## 9. Restart Extra Services Only If Your Change Touched Them
 
 ### Realtime Notifications
 

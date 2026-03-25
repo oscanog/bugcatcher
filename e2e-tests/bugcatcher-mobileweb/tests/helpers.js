@@ -3,9 +3,8 @@ const { cfg } = require("../src/config");
 
 const allDrawerLabels = [
   "Super Admin",
-  "OpenClaw",
+  "AI Admin",
   "Checklist",
-  "Discord Link",
   "Manage Users",
   "Settings",
   "Logout",

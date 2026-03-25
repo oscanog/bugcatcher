@@ -10,6 +10,7 @@ require_once __DIR__ . '/issues.php';
 require_once __DIR__ . '/dashboard.php';
 require_once __DIR__ . '/notifications.php';
 require_once __DIR__ . '/realtime.php';
+require_once __DIR__ . '/admin_ai.php';
 require_once __DIR__ . '/admin_openclaw.php';
 require_once __DIR__ . '/ai_chat.php';
 require_once __DIR__ . '/aliases.php';
@@ -82,6 +83,17 @@ function bc_v1_routes(): array
         ['method' => 'POST', 'pattern' => '/notifications/read-all', 'handler' => 'bc_v1_notifications_read_all_post'],
         ['method' => 'POST', 'pattern' => '/notifications/{id}/read', 'handler' => 'bc_v1_notifications_read_post'],
         ['method' => 'POST', 'pattern' => '/realtime/socket-token', 'handler' => 'bc_v1_realtime_socket_token_post'],
+
+        ['method' => 'GET', 'pattern' => '/admin/ai/runtime', 'handler' => 'bc_v1_admin_ai_runtime_get'],
+        ['method' => 'PUT', 'pattern' => '/admin/ai/runtime', 'handler' => 'bc_v1_admin_ai_runtime_put'],
+        ['method' => 'PATCH', 'pattern' => '/admin/ai/runtime', 'handler' => 'bc_v1_admin_ai_runtime_put'],
+        ['method' => 'GET', 'pattern' => '/admin/ai/providers', 'handler' => 'bc_v1_admin_ai_providers_get'],
+        ['method' => 'POST', 'pattern' => '/admin/ai/providers', 'handler' => 'bc_v1_admin_ai_providers_post'],
+        ['method' => 'DELETE', 'pattern' => '/admin/ai/providers/{id}', 'handler' => 'bc_v1_admin_ai_providers_delete'],
+        ['method' => 'GET', 'pattern' => '/admin/ai/models', 'handler' => 'bc_v1_admin_ai_models_get'],
+        ['method' => 'POST', 'pattern' => '/admin/ai/models', 'handler' => 'bc_v1_admin_ai_models_post'],
+        ['method' => 'DELETE', 'pattern' => '/admin/ai/models/{id}', 'handler' => 'bc_v1_admin_ai_models_delete'],
+
         ['method' => 'GET', 'pattern' => '/ai-chat/bootstrap', 'handler' => 'bc_v1_ai_chat_bootstrap_get'],
         ['method' => 'GET', 'pattern' => '/ai-chat/threads', 'handler' => 'bc_v1_ai_chat_threads_get'],
         ['method' => 'POST', 'pattern' => '/ai-chat/threads', 'handler' => 'bc_v1_ai_chat_threads_post'],

@@ -313,60 +313,12 @@ CREATE TABLE IF NOT EXISTS checklist_batch_attachments (
     ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
-CREATE TABLE IF NOT EXISTS discord_user_links (
-  id INT(11) NOT NULL AUTO_INCREMENT,
-  user_id INT(11) NOT NULL,
-  discord_user_id VARCHAR(64) DEFAULT NULL,
-  discord_username VARCHAR(100) DEFAULT NULL,
-  discord_global_name VARCHAR(100) DEFAULT NULL,
-  link_code_hash CHAR(64) DEFAULT NULL,
-  link_code_expires_at DATETIME DEFAULT NULL,
-  linked_at DATETIME DEFAULT NULL,
-  last_seen_at DATETIME DEFAULT NULL,
-  is_active TINYINT(1) NOT NULL DEFAULT 1,
-  PRIMARY KEY (id),
-  UNIQUE KEY uniq_discord_user_links_user (user_id),
-  UNIQUE KEY uniq_discord_user_links_discord_user (discord_user_id),
-  KEY idx_discord_user_links_code (link_code_hash, link_code_expires_at),
-  CONSTRAINT fk_discord_user_links_user
-    FOREIGN KEY (user_id) REFERENCES users(id)
-    ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-
-CREATE TABLE IF NOT EXISTS discord_channel_bindings (
-  id INT(11) NOT NULL AUTO_INCREMENT,
-  guild_id VARCHAR(64) NOT NULL,
-  guild_name VARCHAR(120) DEFAULT NULL,
-  channel_id VARCHAR(64) NOT NULL,
-  channel_name VARCHAR(120) DEFAULT NULL,
-  is_enabled TINYINT(1) NOT NULL DEFAULT 1,
-  allow_dm_followup TINYINT(1) NOT NULL DEFAULT 1,
-  created_by INT(11) NOT NULL,
-  updated_by INT(11) DEFAULT NULL,
-  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME DEFAULT NULL,
-  PRIMARY KEY (id),
-  UNIQUE KEY uniq_discord_channel_bindings_channel (channel_id),
-  KEY idx_discord_channel_bindings_guild (guild_id, is_enabled),
-  CONSTRAINT fk_discord_channel_bindings_created_by
-    FOREIGN KEY (created_by) REFERENCES users(id),
-  CONSTRAINT fk_discord_channel_bindings_updated_by
-    FOREIGN KEY (updated_by) REFERENCES users(id)
-    ON DELETE SET NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-
 CREATE TABLE IF NOT EXISTS openclaw_runtime_config (
   id INT(11) NOT NULL AUTO_INCREMENT,
   is_enabled TINYINT(1) NOT NULL DEFAULT 0,
-  encrypted_discord_bot_token TEXT DEFAULT NULL,
   default_provider_config_id INT(11) DEFAULT NULL,
   default_model_id INT(11) DEFAULT NULL,
   notes TEXT DEFAULT NULL,
-  ai_chat_enabled TINYINT(1) NOT NULL DEFAULT 1,
-  ai_chat_default_provider_config_id INT(11) DEFAULT NULL,
-  ai_chat_default_model_id INT(11) DEFAULT NULL,
-  ai_chat_assistant_name VARCHAR(120) DEFAULT NULL,
-  ai_chat_system_prompt TEXT DEFAULT NULL,
   created_by INT(11) NOT NULL,
   updated_by INT(11) DEFAULT NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -460,9 +412,38 @@ CREATE TABLE IF NOT EXISTS ai_models (
     ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
+CREATE TABLE IF NOT EXISTS ai_runtime_config (
+  id INT(11) NOT NULL AUTO_INCREMENT,
+  is_enabled TINYINT(1) NOT NULL DEFAULT 1,
+  default_provider_config_id INT(11) DEFAULT NULL,
+  default_model_id INT(11) DEFAULT NULL,
+  assistant_name VARCHAR(120) DEFAULT NULL,
+  system_prompt TEXT DEFAULT NULL,
+  created_by INT(11) NOT NULL,
+  updated_by INT(11) DEFAULT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT NULL,
+  PRIMARY KEY (id),
+  KEY idx_ai_runtime_config_created_by (created_by),
+  KEY idx_ai_runtime_config_updated_by (updated_by),
+  KEY idx_ai_runtime_config_provider (default_provider_config_id),
+  KEY idx_ai_runtime_config_model (default_model_id),
+  CONSTRAINT fk_ai_runtime_config_created_by
+    FOREIGN KEY (created_by) REFERENCES users(id),
+  CONSTRAINT fk_ai_runtime_config_updated_by
+    FOREIGN KEY (updated_by) REFERENCES users(id)
+    ON DELETE SET NULL,
+  CONSTRAINT fk_ai_runtime_config_provider
+    FOREIGN KEY (default_provider_config_id) REFERENCES ai_provider_configs(id)
+    ON DELETE SET NULL,
+  CONSTRAINT fk_ai_runtime_config_model
+    FOREIGN KEY (default_model_id) REFERENCES ai_models(id)
+    ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
 CREATE TABLE IF NOT EXISTS openclaw_requests (
   id INT(11) NOT NULL AUTO_INCREMENT,
-  discord_user_link_id INT(11) NOT NULL,
+  discord_user_link_id INT(11) DEFAULT NULL,
   guild_id VARCHAR(64) DEFAULT NULL,
   channel_id VARCHAR(64) DEFAULT NULL,
   thread_id VARCHAR(64) DEFAULT NULL,
@@ -485,9 +466,6 @@ CREATE TABLE IF NOT EXISTS openclaw_requests (
   PRIMARY KEY (id),
   KEY idx_openclaw_requests_status (status, updated_at),
   KEY idx_openclaw_requests_user (requested_by_user_id, created_at),
-  CONSTRAINT fk_openclaw_requests_discord_user_link
-    FOREIGN KEY (discord_user_link_id) REFERENCES discord_user_links(id)
-    ON DELETE CASCADE,
   CONSTRAINT fk_openclaw_requests_selected_org
     FOREIGN KEY (selected_org_id) REFERENCES organizations(id)
     ON DELETE SET NULL,
@@ -854,12 +832,15 @@ INSERT INTO checklist_items (
 
 -- Keep OpenClaw runtime off by default in local dev.
 INSERT INTO openclaw_runtime_config (
-  id, is_enabled, encrypted_discord_bot_token, default_provider_config_id, default_model_id,
-  notes, ai_chat_enabled, ai_chat_default_provider_config_id, ai_chat_default_model_id,
-  ai_chat_assistant_name, ai_chat_system_prompt, created_by, updated_by
+  id, is_enabled, default_provider_config_id, default_model_id, notes, created_by, updated_by
 ) VALUES (
-  1, 0, NULL, NULL, NULL,
-  'Local dev bootstrap default', 1, NULL, NULL,
+  1, 0, NULL, NULL, 'Local dev bootstrap default', 1, 1
+);
+
+INSERT INTO ai_runtime_config (
+  id, is_enabled, default_provider_config_id, default_model_id, assistant_name, system_prompt, created_by, updated_by
+) VALUES (
+  1, 1, NULL, NULL,
   'BugCatcher AI', 'You are BugCatcher AI. Help the team discuss bugs, tests, checklists, and project delivery clearly and practically.',
   1, 1
 );

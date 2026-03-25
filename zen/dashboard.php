@@ -1163,9 +1163,8 @@ function issues_url_clear($status)
       <a href="<?= htmlspecialchars(bugcatcher_path('zen/organization.php')) ?>">Organization</a>
       <a href="<?= htmlspecialchars(bugcatcher_path('melvin/project_list.php')) ?>">Projects</a>
       <a href="<?= htmlspecialchars(bugcatcher_path('melvin/checklist_list.php')) ?>">Checklist</a>
-      <a href="<?= htmlspecialchars(bugcatcher_path('discord-link.php')) ?>">Discord Link</a>
       <?php if (bugcatcher_is_super_admin_role($current_role)): ?>
-        <a href="<?= htmlspecialchars(bugcatcher_path('super-admin/openclaw.php')) ?>">Super Admin</a>
+        <a href="<?= htmlspecialchars(bugcatcher_path('super-admin/ai.php')) ?>">AI Admin</a>
       <?php endif; ?>
       <a href="<?= htmlspecialchars(bugcatcher_path('rainier/logout.php')) ?>" class="nav-logout">Logout</a>
     </nav>

@@ -1,1 +1,0 @@
-"""OpenClaw Discord bot package."""

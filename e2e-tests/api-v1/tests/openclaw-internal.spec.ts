@@ -1,7 +1,7 @@
 ﻿import { expect, request, test, APIRequestContext } from "@playwright/test";
 import { cfg } from "../src/config";
 import { authHeaders, loginRole, RoleSession } from "./helpers/auth";
-import { ApiEnvelope, apiPostJson, parseJson } from "./helpers/client";
+import { ApiEnvelope } from "./helpers/client";
 
 test.describe.configure({ mode: "serial" });
 
@@ -23,7 +23,7 @@ test.afterAll(async () => {
   await api.dispose();
 });
 
-test("openclaw internal endpoints enforce auth", async () => {
+test("retired openclaw internal endpoints still enforce auth", async () => {
   const health = await api.get(`${cfg.apiBasePath}/openclaw/health`);
   expect(health.status()).toBe(401);
 
@@ -41,25 +41,21 @@ test("openclaw internal endpoints enforce auth", async () => {
   expect(ingest.status()).toBe(401);
 });
 
-test("openclaw link prepare aliases work with session auth", async () => {
+test("retired openclaw link prepare aliases return gone with session auth", async () => {
   const prepareA = await api.post(`${cfg.apiBasePath}/openclaw/link-prepare`, {
     data: {},
     headers: authHeaders(pm),
   });
-  expect(prepareA.status()).toBe(200);
-  const bodyA = await parseJson<{ code: string; expires_in_seconds: number }>(prepareA);
-  expect(bodyA.code.length).toBe(12);
+  expect(prepareA.status()).toBe(410);
 
   const prepareB = await api.post(`${cfg.apiBasePath}/openclaw/link_prepare`, {
     data: {},
     headers: authHeaders(pm),
   });
-  expect(prepareB.status()).toBe(200);
-  const bodyB = await parseJson<{ code: string; expires_in_seconds: number }>(prepareB);
-  expect(bodyB.code.length).toBe(12);
+  expect(prepareB.status()).toBe(410);
 });
 
-test("openclaw internal aliases are reachable with internal token", async () => {
+test("retired openclaw internals return gone while ingest aliases still validate", async () => {
   test.skip(!cfg.openclawInternalToken, "Set E2E_OPENCLAW_INTERNAL_TOKEN to run internal positive checks.");
 
   const health = await api.get(`${cfg.apiBasePath}/openclaw/health`, {
@@ -68,14 +64,14 @@ test("openclaw internal aliases are reachable with internal token", async () => 
   if (health.status() === 401) {
     test.skip(true, "Configured E2E_OPENCLAW_INTERNAL_TOKEN is not accepted by this environment.");
   }
-  expect(health.status()).toBe(200);
+  expect(health.status()).toBe(410);
 
   for (const path of ["link-confirm", "link_confirm"]) {
     const res = await api.post(`${cfg.apiBasePath}/openclaw/${path}`, {
       data: {},
       headers: internalHeaders(),
     });
-    expect(res.status()).toBe(422);
+    expect(res.status()).toBe(410);
   }
 
   for (const path of ["link-context", "link_context"]) {
@@ -83,7 +79,7 @@ test("openclaw internal aliases are reachable with internal token", async () => 
       data: {},
       headers: internalHeaders(),
     });
-    expect(res.status()).toBe(422);
+    expect(res.status()).toBe(410);
   }
 
   for (const path of ["checklist-duplicates", "checklist_duplicates"]) {
@@ -106,7 +102,7 @@ test("openclaw internal aliases are reachable with internal token", async () => 
     const res = await api.get(`${cfg.apiBasePath}/openclaw/${path}`, {
       headers: internalHeaders(),
     });
-    expect([200, 500]).toContain(res.status());
+    expect(res.status()).toBe(410);
   }
 
   for (const path of ["runtime-reload", "runtime_reload"]) {
@@ -114,7 +110,7 @@ test("openclaw internal aliases are reachable with internal token", async () => 
       data: { reason: "api_v1_e2e" },
       headers: internalHeaders(),
     });
-    expect([202, 500]).toContain(res.status());
+    expect(res.status()).toBe(410);
   }
 
   for (const path of ["runtime-status", "runtime_status"]) {
@@ -125,7 +121,7 @@ test("openclaw internal aliases are reachable with internal token", async () => 
       },
       headers: internalHeaders(),
     });
-    expect([200, 500]).toContain(res.status());
+    expect(res.status()).toBe(410);
   }
 });
 

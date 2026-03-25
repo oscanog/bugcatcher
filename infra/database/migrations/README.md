@@ -8,6 +8,7 @@ This directory holds production-safe incremental SQL migrations.
 - [20260305_openclaw_control_plane.sql](/C:/capstone2/bugcatcher/infra/database/migrations/20260305_openclaw_control_plane.sql)
 - [20260315_password_reset_requests.sql](/C:/xampp/htdocs/bugcatcher/infra/database/migrations/20260315_password_reset_requests.sql)
 - [20260325_attachment_storage_providers.sql](/C:/xampp/htdocs/bugcatcher/infra/database/migrations/20260325_attachment_storage_providers.sql)
+- [20260325_ai_runtime_split_and_discord_cleanup.sql](/C:/xampp/htdocs/bugcatcher/infra/database/migrations/20260325_ai_runtime_split_and_discord_cleanup.sql)
 
 Apply this migration to an existing BugCatcher production database instead of re-importing the full [schema.sql](/C:/capstone2/bugcatcher/infra/database/schema.sql).
 
@@ -24,11 +25,10 @@ If you must reverse it without restoring a backup:
    - `openclaw_request_attachments`
    - `openclaw_request_items`
    - `openclaw_requests`
+   - `ai_runtime_config`
    - `ai_models`
    - `ai_provider_configs`
    - `openclaw_runtime_config`
-   - `discord_channel_bindings`
-   - `discord_user_links`
    - `checklist_batch_attachments`
 2. Change `users.role` back to `ENUM('admin','user')` only after confirming no `super_admin` rows remain.
 
