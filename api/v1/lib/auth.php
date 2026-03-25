@@ -9,6 +9,7 @@ function bc_v1_auth_login(mysqli $conn, array $params): void
     $email = trim((string) ($payload['email'] ?? ''));
     $password = (string) ($payload['password'] ?? '');
     $requestedOrgId = bc_v1_get_int($payload, 'active_org_id', 0);
+    $requestedScope = strtolower(trim((string) ($payload['active_scope'] ?? '')));
 
     if ($email === '' && $password === '') {
         bc_v1_json_error(422, 'validation_error', 'Email and password are required.');
@@ -35,6 +36,7 @@ function bc_v1_auth_login(mysqli $conn, array $params): void
 
     $userId = (int) $user['id'];
     $role = bugcatcher_normalize_system_role((string) ($user['role'] ?? 'user'));
+    $canUseAllScope = bc_v1_can_use_all_scope(['role' => $role]);
     $activeOrgId = 0;
     if ($requestedOrgId > 0 && bc_v1_has_membership($conn, $requestedOrgId, $userId)) {
         $activeOrgId = $requestedOrgId;
@@ -43,29 +45,35 @@ function bc_v1_auth_login(mysqli $conn, array $params): void
     } else {
         $activeOrgId = bc_v1_first_org_id($conn, $userId);
     }
+    $activeScope = bc_v1_normalize_active_scope($requestedScope, $canUseAllScope, $activeOrgId);
+    if ($requestedScope === 'all' && !$canUseAllScope) {
+        bc_v1_json_error(403, 'all_scope_forbidden', 'Only system admins can use all organizations.');
+    }
+    if ($activeScope !== 'all' && $activeOrgId <= 0) {
+        $activeScope = 'none';
+    }
 
     $_SESSION['id'] = $userId;
     $_SESSION['username'] = (string) $user['username'];
     $_SESSION['role'] = $role;
     bugcatcher_mark_known_user_browser();
-    bc_v1_set_active_org($conn, $userId, $activeOrgId);
+    bc_v1_set_active_org($conn, $userId, $activeScope === 'org' ? $activeOrgId : 0, $activeScope);
 
     $normalizedUser = bc_v1_fetch_user_by_id($conn, $userId);
     if (!$normalizedUser) {
         bc_v1_json_error(500, 'login_failed', 'Login succeeded but user record could not be loaded.');
     }
-    $tokens = bc_v1_issue_token_pair($normalizedUser, $activeOrgId);
+    $tokens = bc_v1_issue_token_pair($normalizedUser, $activeScope === 'org' ? $activeOrgId : 0, $activeScope);
 
-    bc_v1_json_success([
+    bc_v1_json_success(array_merge([
         'user' => [
             'id' => $normalizedUser['id'],
             'username' => $normalizedUser['username'],
             'email' => $normalizedUser['email'],
             'role' => $normalizedUser['role'],
         ],
-        'active_org_id' => $activeOrgId,
         'tokens' => $tokens,
-    ]);
+    ], bc_v1_selection_payload($normalizedUser, $activeScope, $activeOrgId)));
 }
 
 function bc_v1_auth_signup(mysqli $conn, array $params): void
@@ -130,21 +138,27 @@ function bc_v1_auth_refresh(mysqli $conn, array $params): void
         bc_v1_json_error(401, 'user_not_found', 'Refresh token user no longer exists.');
     }
 
+    $canUseAllScope = bc_v1_can_use_all_scope($user);
+    $activeScope = bc_v1_normalize_active_scope((string) ($tokenPayload['as'] ?? ''), $canUseAllScope, (int) ($tokenPayload['ao'] ?? 0));
     $activeOrgId = (int) ($tokenPayload['ao'] ?? 0);
-    if ($activeOrgId > 0 && !bc_v1_has_membership($conn, $activeOrgId, $userId)) {
+    if ($activeScope === 'org') {
+        if ($activeOrgId > 0 && !bc_v1_has_membership($conn, $activeOrgId, $userId)) {
+            $activeOrgId = 0;
+        }
+        if ($activeOrgId <= 0) {
+            $activeOrgId = (int) ($user['last_active_org_id'] ?? 0);
+        }
+        if ($activeOrgId > 0 && !bc_v1_has_membership($conn, $activeOrgId, $userId)) {
+            $activeOrgId = bc_v1_first_org_id($conn, $userId);
+        }
+        $activeScope = bc_v1_normalize_active_scope($activeScope, $canUseAllScope, $activeOrgId);
+    } else {
         $activeOrgId = 0;
     }
-    if ($activeOrgId <= 0) {
-        $activeOrgId = (int) ($user['last_active_org_id'] ?? 0);
-    }
-    if ($activeOrgId > 0 && !bc_v1_has_membership($conn, $activeOrgId, $userId)) {
-        $activeOrgId = bc_v1_first_org_id($conn, $userId);
-    }
 
-    bc_v1_json_success([
-        'tokens' => bc_v1_issue_token_pair($user, $activeOrgId),
-        'active_org_id' => $activeOrgId,
-    ]);
+    bc_v1_json_success(array_merge([
+        'tokens' => bc_v1_issue_token_pair($user, $activeScope === 'org' ? $activeOrgId : 0, $activeScope),
+    ], bc_v1_selection_payload($user, $activeScope, $activeOrgId)));
 }
 
 function bc_v1_auth_logout(mysqli $conn, array $params): void
@@ -190,7 +204,7 @@ function bc_v1_auth_me(mysqli $conn, array $params): void
         ];
     }
 
-    bc_v1_json_success([
+    bc_v1_json_success(array_merge([
         'user' => [
             'id' => (int) $user['id'],
             'username' => (string) $user['username'],
@@ -198,9 +212,8 @@ function bc_v1_auth_me(mysqli $conn, array $params): void
             'role' => (string) $user['role'],
         ],
         'auth_type' => (string) $actor['auth_type'],
-        'active_org_id' => (int) ($actor['active_org_id'] ?? 0),
         'memberships' => $memberships,
-    ]);
+    ], bc_v1_selection_payload($user, (string) ($actor['active_scope'] ?? 'none'), (int) ($actor['active_org_id'] ?? 0))));
 }
 
 function bc_v1_auth_profile_patch(mysqli $conn, array $params): void
@@ -298,20 +311,39 @@ function bc_v1_session_active_org_put(mysqli $conn, array $params): void
     bc_v1_require_method(['PUT']);
     $actor = bc_v1_actor($conn, true);
     $payload = bc_v1_request_data();
+    $requestedScope = strtolower(trim((string) ($payload['scope'] ?? $payload['active_scope'] ?? '')));
     $orgId = bc_v1_get_int($payload, 'org_id', 0);
+    $userId = (int) $actor['user']['id'];
+
+    if ($requestedScope === 'all') {
+        if (!bc_v1_actor_is_admin($actor)) {
+            bc_v1_json_error(403, 'all_scope_forbidden', 'Only system admins can use all organizations.');
+        }
+        bc_v1_set_active_org($conn, $userId, 0, 'all');
+        $user = bc_v1_fetch_user_by_id($conn, $userId);
+        if (!$user) {
+            bc_v1_json_error(500, 'selection_failed', 'Unable to refresh the current user selection.');
+        }
+        bc_v1_json_success(array_merge([
+            'tokens' => bc_v1_issue_token_pair($user, 0, 'all'),
+        ], bc_v1_selection_payload($user, 'all', 0)));
+    }
+
     if ($orgId <= 0) {
         bc_v1_json_error(422, 'invalid_org', 'org_id must be a positive integer.');
     }
-    $userId = (int) $actor['user']['id'];
     if (!bc_v1_has_membership($conn, $orgId, $userId)) {
         bc_v1_json_error(403, 'org_membership_required', 'You are not a member of the selected organization.');
     }
 
-    bc_v1_set_active_org($conn, $userId, $orgId);
-    bc_v1_json_success([
-        'active_org_id' => $orgId,
-        'tokens' => bc_v1_issue_token_pair($actor['user'], $orgId),
-    ]);
+    bc_v1_set_active_org($conn, $userId, $orgId, 'org');
+    $user = bc_v1_fetch_user_by_id($conn, $userId);
+    if (!$user) {
+        bc_v1_json_error(500, 'selection_failed', 'Unable to refresh the current user selection.');
+    }
+    bc_v1_json_success(array_merge([
+        'tokens' => bc_v1_issue_token_pair($user, $orgId, 'org'),
+    ], bc_v1_selection_payload($user, 'org', $orgId)));
 }
 
 function bc_v1_auth_forgot_request_otp(mysqli $conn, array $params): void

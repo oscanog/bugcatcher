@@ -6,9 +6,59 @@ function bc_v1_projects_get(mysqli $conn, array $params): void
 {
     bc_v1_require_method(['GET']);
     $actor = bc_v1_actor($conn, true);
-    $org = bc_v1_org_context($conn, $actor, bc_v1_get_int($_GET, 'org_id', 0));
+    $requestedOrgId = bc_v1_get_int($_GET, 'org_id', 0);
     $includeArchived = ((string) ($_GET['show'] ?? 'active')) === 'all';
+
+    if (bc_v1_actor_is_all_scope($actor) && $requestedOrgId <= 0) {
+        $userId = (int) $actor['user']['id'];
+        $sql = "
+            SELECT
+                p.id,
+                p.org_id,
+                o.name AS org_name,
+                p.name,
+                p.code,
+                p.description,
+                p.status,
+                p.created_by,
+                p.updated_by,
+                p.created_at,
+                p.updated_at
+            FROM projects p
+            JOIN org_members om
+                ON om.org_id = p.org_id
+               AND om.user_id = ?
+            JOIN organizations o ON o.id = p.org_id
+        ";
+        if (!$includeArchived) {
+            $sql .= " WHERE p.status = 'active'";
+        }
+        $sql .= " ORDER BY o.name ASC, p.name ASC, p.id ASC";
+
+        $stmt = $conn->prepare($sql);
+        $stmt->bind_param('i', $userId);
+        $stmt->execute();
+        $projects = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+        $stmt->close();
+
+        bc_v1_json_success([
+            'org' => bc_v1_all_org_context($actor),
+            'projects' => array_map(static function (array $project): array {
+                $project['id'] = (int) ($project['id'] ?? 0);
+                $project['org_id'] = (int) ($project['org_id'] ?? 0);
+                $project['created_by'] = (int) ($project['created_by'] ?? 0);
+                $project['updated_by'] = isset($project['updated_by']) ? (int) $project['updated_by'] : null;
+                return $project;
+            }, $projects),
+        ]);
+    }
+
+    $org = bc_v1_org_context($conn, $actor, $requestedOrgId);
     $projects = bugcatcher_checklist_fetch_projects($conn, (int) $org['org_id'], $includeArchived);
+    foreach ($projects as &$project) {
+        $project['org_name'] = (string) $org['org_name'];
+    }
+    unset($project);
 
     bc_v1_json_success([
         'org' => $org,
@@ -84,12 +134,39 @@ function bc_v1_projects_id_get(mysqli $conn, array $params): void
     if ($projectId <= 0) {
         bc_v1_json_error(422, 'invalid_project', 'Project id is invalid.');
     }
-    $org = bc_v1_org_context($conn, $actor, bc_v1_get_int($_GET, 'org_id', 0));
+    $requestedOrgId = bc_v1_get_int($_GET, 'org_id', 0);
+    if ($requestedOrgId > 0 || !bc_v1_actor_is_all_scope($actor)) {
+        $org = bc_v1_org_context($conn, $actor, $requestedOrgId);
+    } else {
+        $stmt = $conn->prepare("
+            SELECT p.org_id
+            FROM projects p
+            JOIN org_members om
+                ON om.org_id = p.org_id
+               AND om.user_id = ?
+            WHERE p.id = ?
+            LIMIT 1
+        ");
+        $userId = (int) $actor['user']['id'];
+        $stmt->bind_param('ii', $userId, $projectId);
+        $stmt->execute();
+        $row = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+        if (!$row) {
+            bc_v1_json_error(404, 'project_not_found', 'Project not found.');
+        }
+        $org = bc_v1_org_context($conn, $actor, (int) $row['org_id']);
+    }
     $project = bugcatcher_checklist_fetch_project($conn, (int) $org['org_id'], $projectId);
     if (!$project) {
         bc_v1_json_error(404, 'project_not_found', 'Project not found.');
     }
+    $project['org_name'] = (string) $org['org_name'];
     $batches = bugcatcher_checklist_fetch_batches($conn, (int) $org['org_id'], $projectId);
+    foreach ($batches as &$batch) {
+        $batch['org_name'] = (string) $org['org_name'];
+    }
+    unset($batch);
     bc_v1_json_success(['project' => $project, 'batches' => $batches]);
 }
 

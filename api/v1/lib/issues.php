@@ -20,9 +20,10 @@ function bc_v1_issue_org_member_has_role(mysqli $conn, int $orgId, int $userId, 
 function bc_v1_issue_fetch(mysqli $conn, int $orgId, int $issueId): ?array
 {
     $stmt = $conn->prepare("
-        SELECT i.*, u.username AS author_username
+        SELECT i.*, u.username AS author_username, o.name AS org_name
         FROM issues i
         LEFT JOIN users u ON u.id = i.author_id
+        JOIN organizations o ON o.id = i.org_id
         WHERE i.id = ? AND i.org_id = ?
         LIMIT 1
     ");
@@ -108,6 +109,7 @@ function bc_v1_issue_shape(array $row, array $labels = [], array $attachments = 
     return [
         'id' => (int) $row['id'],
         'org_id' => (int) $row['org_id'],
+        'org_name' => (string) ($row['org_name'] ?? ''),
         'title' => (string) $row['title'],
         'description' => (string) ($row['description'] ?? ''),
         'status' => (string) ($row['status'] ?? 'open'),
@@ -175,6 +177,48 @@ function bc_v1_issue_count(mysqli $conn, int $orgId, string $status): int
     $row = $stmt->get_result()->fetch_assoc();
     $stmt->close();
     return (int) ($row['total'] ?? 0);
+}
+
+function bc_v1_issue_count_for_org_ids(mysqli $conn, array $orgIds, string $status): int
+{
+    if (!$orgIds) {
+        return 0;
+    }
+
+    $placeholders = implode(',', array_fill(0, count($orgIds), '?'));
+    $params = array_merge([$status], $orgIds);
+    $types = 's' . str_repeat('i', count($orgIds));
+    $stmt = $conn->prepare("
+        SELECT COUNT(*) AS total
+        FROM issues
+        WHERE status = ? AND org_id IN ({$placeholders})
+    ");
+    bc_v1_stmt_bind($stmt, $types, $params);
+    $stmt->execute();
+    $row = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    return (int) ($row['total'] ?? 0);
+}
+
+function bc_v1_issue_fetch_for_actor(mysqli $conn, array $actor, int $issueId): ?array
+{
+    $userId = (int) ($actor['user']['id'] ?? 0);
+    $stmt = $conn->prepare("
+        SELECT i.*, u.username AS author_username, o.name AS org_name
+        FROM issues i
+        JOIN org_members om
+            ON om.org_id = i.org_id
+           AND om.user_id = ?
+        JOIN organizations o ON o.id = i.org_id
+        LEFT JOIN users u ON u.id = i.author_id
+        WHERE i.id = ?
+        LIMIT 1
+    ");
+    $stmt->bind_param('ii', $userId, $issueId);
+    $stmt->execute();
+    $row = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    return $row ?: null;
 }
 
 function bc_v1_issue_parse_label_ids(array $payload): array
@@ -270,11 +314,100 @@ function bc_v1_issues_get(mysqli $conn, array $params): void
 {
     bc_v1_require_method(['GET']);
     $actor = bc_v1_actor($conn, true);
-    $org = bc_v1_org_context($conn, $actor, bc_v1_get_int($_GET, 'org_id', 0));
+    $requestedOrgId = bc_v1_get_int($_GET, 'org_id', 0);
 
     $status = ((string) ($_GET['status'] ?? 'open')) === 'closed' ? 'closed' : 'open';
     $labelId = bc_v1_get_int($_GET, 'label', 0);
     $author = bc_v1_get_int($_GET, 'author', 0);
+    $isAllScope = bc_v1_actor_is_all_scope($actor) && $requestedOrgId <= 0;
+
+    if ($isAllScope) {
+        $orgIds = bc_v1_user_org_ids($conn, (int) $actor['user']['id']);
+        $scope = 'all';
+        $isSystemAdmin = true;
+
+        if ($author > 0 || $labelId > 0) {
+            // Keep the existing admin-only author/label filtering behavior in all-scope.
+            $author = max(0, $author);
+            $labelId = max(0, $labelId);
+        }
+
+        if (!$orgIds) {
+            bc_v1_json_success([
+                'org' => bc_v1_all_org_context($actor),
+                'scope' => $scope,
+                'status' => $status,
+                'filters' => [
+                    'author' => $author > 0 ? $author : null,
+                    'label' => $labelId > 0 ? $labelId : null,
+                ],
+                'counts' => [
+                    'open' => 0,
+                    'closed' => 0,
+                ],
+                'issues' => [],
+            ]);
+        }
+
+        $placeholders = implode(',', array_fill(0, count($orgIds), '?'));
+        $sql = "
+            SELECT i.*, u.username AS author_username, o.name AS org_name
+            FROM issues i
+            JOIN organizations o ON o.id = i.org_id
+            LEFT JOIN users u ON u.id = i.author_id
+            WHERE i.status = ? AND i.org_id IN ({$placeholders})
+        ";
+        $types = 's' . str_repeat('i', count($orgIds));
+        $queryParams = array_merge([$status], $orgIds);
+
+        if ($author > 0) {
+            $sql .= " AND i.author_id = ?";
+            $types .= 'i';
+            $queryParams[] = $author;
+        }
+        if ($labelId > 0) {
+            $sql .= " AND i.id IN (SELECT issue_id FROM issue_labels WHERE label_id = ?)";
+            $types .= 'i';
+            $queryParams[] = $labelId;
+        }
+
+        $sql .= " ORDER BY i.created_at DESC";
+
+        $stmt = $conn->prepare($sql);
+        bc_v1_stmt_bind($stmt, $types, $queryParams);
+        $stmt->execute();
+        $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+        $stmt->close();
+
+        $issueIds = array_map(static function (array $row): int {
+            return (int) $row['id'];
+        }, $rows);
+        $labelsMap = bc_v1_issue_labels_map($conn, $issueIds);
+        $attachmentsMap = bc_v1_issue_attachments_map($conn, $issueIds);
+
+        $issues = [];
+        foreach ($rows as $row) {
+            $issueId = (int) $row['id'];
+            $issues[] = bc_v1_issue_shape($row, $labelsMap[$issueId] ?? [], $attachmentsMap[$issueId] ?? []);
+        }
+
+        bc_v1_json_success([
+            'org' => bc_v1_all_org_context($actor),
+            'scope' => $scope,
+            'status' => $status,
+            'filters' => [
+                'author' => $author > 0 ? $author : null,
+                'label' => $labelId > 0 ? $labelId : null,
+            ],
+            'counts' => [
+                'open' => bc_v1_issue_count_for_org_ids($conn, $orgIds, 'open'),
+                'closed' => bc_v1_issue_count_for_org_ids($conn, $orgIds, 'closed'),
+            ],
+            'issues' => $issues,
+        ]);
+    }
+
+    $org = bc_v1_org_context($conn, $actor, $requestedOrgId);
     $scope = bc_v1_issue_visibility_scope($org);
     $isSystemAdmin = bugcatcher_is_system_admin_role((string) ($org['system_role'] ?? 'user'));
 
@@ -283,8 +416,9 @@ function bc_v1_issues_get(mysqli $conn, array $params): void
     }
 
     $sql = "
-        SELECT i.*, u.username AS author_username
+        SELECT i.*, u.username AS author_username, o.name AS org_name
         FROM issues i
+        JOIN organizations o ON o.id = i.org_id
         LEFT JOIN users u ON u.id = i.author_id
         WHERE i.status = ? AND i.org_id = ?
     ";
@@ -350,10 +484,19 @@ function bc_v1_issues_id_get(mysqli $conn, array $params): void
         bc_v1_json_error(422, 'invalid_issue', 'Issue id is invalid.');
     }
 
-    $org = bc_v1_org_context($conn, $actor, bc_v1_get_int($_GET, 'org_id', 0));
-    $issue = bc_v1_issue_fetch($conn, (int) $org['org_id'], $issueId);
+    $requestedOrgId = bc_v1_get_int($_GET, 'org_id', 0);
+    if ($requestedOrgId > 0 || !bc_v1_actor_is_all_scope($actor)) {
+        $org = bc_v1_org_context($conn, $actor, $requestedOrgId);
+        $issue = bc_v1_issue_fetch($conn, (int) $org['org_id'], $issueId);
+    } else {
+        $issue = bc_v1_issue_fetch_for_actor($conn, $actor, $issueId);
+        $org = $issue ? bc_v1_org_context($conn, $actor, (int) $issue['org_id']) : null;
+    }
     if (!$issue) {
         bc_v1_json_error(404, 'issue_not_found', 'Issue not found in this organization.');
+    }
+    if (!$org) {
+        bc_v1_json_error(404, 'org_not_found', 'Issue organization could not be resolved.');
     }
     if (!bc_v1_issue_is_visible_to_actor($issue, $org)) {
         bc_v1_json_error(403, 'forbidden', 'You do not have access to this issue.');

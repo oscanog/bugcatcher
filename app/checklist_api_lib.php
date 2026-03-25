@@ -90,7 +90,17 @@ function checklist_api_require_context(mysqli $conn): array
         checklist_api_json_error(401, 'unauthorized', 'Login session is required.');
     }
 
-    $activeOrgId = (int) ($_SESSION['active_org_id'] ?? 0);
+    $body = checklist_api_json_body(false);
+    if (!$body && !empty($_POST)) {
+        $body = $_POST;
+    }
+
+    $requestedOrgId = checklist_api_get_int($_GET, 'org_id', 0);
+    if ($requestedOrgId <= 0) {
+        $requestedOrgId = checklist_api_get_int($body, 'org_id', 0);
+    }
+
+    $activeOrgId = $requestedOrgId > 0 ? $requestedOrgId : (int) ($_SESSION['active_org_id'] ?? 0);
     if ($activeOrgId <= 0) {
         checklist_api_json_error(403, 'org_context_required', 'Active organization is required.');
     }

@@ -236,7 +236,7 @@ function bc_v1_sign_socket_token(array $payload): string
     return $head . '.' . $body . '.' . bc_v1_base64url_encode($sig);
 }
 
-function bc_v1_issue_socket_token(array $user, int $activeOrgId): array
+function bc_v1_issue_socket_token(array $user, int $activeOrgId, string $activeScope = 'org'): array
 {
     $now = time();
     $path = (string) bugcatcher_config('REALTIME_NOTIFICATIONS_PATH', '/ws/notifications');
@@ -248,6 +248,7 @@ function bc_v1_issue_socket_token(array $user, int $activeOrgId): array
         'username' => (string) $user['username'],
         'role' => (string) $user['role'],
         'ao' => $activeOrgId,
+        'as' => $activeScope,
         'iat' => $now,
         'exp' => $now + 300,
     ]);
@@ -295,21 +296,94 @@ function bc_v1_first_org_id(mysqli $conn, int $userId): int
     return (int) ($row['org_id'] ?? 0);
 }
 
-function bc_v1_set_active_org(mysqli $conn, int $userId, int $orgId): void
+function bc_v1_actor_is_admin(array $actor): bool
 {
-    $stmt = $conn->prepare("UPDATE users SET last_active_org_id = NULLIF(?, 0) WHERE id = ?");
-    $stmt->bind_param('ii', $orgId, $userId);
+    return bugcatcher_is_system_admin_role((string) ($actor['user']['role'] ?? 'user'));
+}
+
+function bc_v1_actor_is_all_scope(array $actor): bool
+{
+    return (string) ($actor['active_scope'] ?? 'none') === 'all';
+}
+
+function bc_v1_user_org_ids(mysqli $conn, int $userId): array
+{
+    $stmt = $conn->prepare("SELECT org_id FROM org_members WHERE user_id = ? ORDER BY org_id ASC");
+    $stmt->bind_param('i', $userId);
     $stmt->execute();
+    $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
     $stmt->close();
+
+    return array_values(array_map(static function (array $row): int {
+        return (int) ($row['org_id'] ?? 0);
+    }, array_filter($rows, static function (array $row): bool {
+        return (int) ($row['org_id'] ?? 0) > 0;
+    })));
+}
+
+function bc_v1_can_use_all_scope(array $user): bool
+{
+    return bugcatcher_is_system_admin_role((string) ($user['role'] ?? 'user'));
+}
+
+function bc_v1_normalize_active_scope(?string $scope, bool $canUseAllScope, int $activeOrgId = 0): string
+{
+    $normalized = strtolower(trim((string) $scope));
+    if ($normalized === 'all' && $canUseAllScope) {
+        return 'all';
+    }
+    if ($normalized === 'none') {
+        return 'none';
+    }
+    if ($activeOrgId > 0) {
+        return 'org';
+    }
+    return 'none';
+}
+
+function bc_v1_selection_payload(array $user, string $activeScope, int $activeOrgId): array
+{
+    return [
+        'active_scope' => $activeScope,
+        'active_org_id' => $activeScope === 'org' && $activeOrgId > 0 ? $activeOrgId : null,
+        'last_org_id' => ((int) ($user['last_active_org_id'] ?? 0)) > 0 ? (int) $user['last_active_org_id'] : null,
+    ];
+}
+
+function bc_v1_all_org_context(array $actor, string $orgName = 'All organizations'): array
+{
+    return [
+        'org_id' => null,
+        'org_name' => $orgName,
+        'org_role' => '',
+        'org_owner_id' => 0,
+        'is_org_owner' => false,
+        'user_id' => (int) ($actor['user']['id'] ?? 0),
+        'system_role' => (string) ($actor['user']['role'] ?? 'user'),
+        'active_scope' => 'all',
+    ];
+}
+
+function bc_v1_set_active_org(mysqli $conn, int $userId, int $orgId, string $scope = 'org'): void
+{
+    $normalizedScope = bc_v1_normalize_active_scope($scope, $scope === 'all', $orgId);
+
+    if ($orgId > 0 || $normalizedScope !== 'all') {
+        $stmt = $conn->prepare("UPDATE users SET last_active_org_id = NULLIF(?, 0) WHERE id = ?");
+        $stmt->bind_param('ii', $orgId, $userId);
+        $stmt->execute();
+        $stmt->close();
+    }
 
     if ($orgId > 0) {
         $_SESSION['active_org_id'] = $orgId;
     } else {
         unset($_SESSION['active_org_id']);
     }
+    $_SESSION['active_scope'] = $normalizedScope;
 }
 
-function bc_v1_issue_token_pair(array $user, int $activeOrgId): array
+function bc_v1_issue_token_pair(array $user, int $activeOrgId, string $activeScope = 'org'): array
 {
     $now = time();
     $base = [
@@ -318,6 +392,7 @@ function bc_v1_issue_token_pair(array $user, int $activeOrgId): array
         'username' => (string) $user['username'],
         'role' => (string) $user['role'],
         'ao' => $activeOrgId,
+        'as' => $activeScope,
         'iat' => $now,
     ];
 
@@ -345,14 +420,25 @@ function bc_v1_actor(mysqli $conn, bool $required = true): ?array
         if (!$user) {
             bc_v1_json_error(401, 'user_not_found', 'Token user no longer exists.');
         }
+        $canUseAllScope = bc_v1_can_use_all_scope($user);
+        $activeScope = bc_v1_normalize_active_scope((string) ($payload['as'] ?? ''), $canUseAllScope, (int) ($payload['ao'] ?? 0));
         $activeOrgId = (int) ($payload['ao'] ?? 0);
-        if ($activeOrgId <= 0) {
-            $activeOrgId = (int) ($user['last_active_org_id'] ?? 0);
+        if ($activeScope === 'org') {
+            if ($activeOrgId <= 0) {
+                $activeOrgId = (int) ($user['last_active_org_id'] ?? 0);
+            }
+            if ($activeOrgId > 0 && !bc_v1_has_membership($conn, $activeOrgId, (int) $user['id'])) {
+                $activeOrgId = bc_v1_first_org_id($conn, (int) $user['id']);
+            }
+            $activeScope = bc_v1_normalize_active_scope($activeScope, $canUseAllScope, $activeOrgId);
+        } else {
+            $activeOrgId = 0;
         }
         return [
             'auth_type' => 'token',
             'user' => $user,
             'active_org_id' => $activeOrgId,
+            'active_scope' => $activeScope,
             'token_payload' => $payload,
         ];
     }
@@ -363,14 +449,25 @@ function bc_v1_actor(mysqli $conn, bool $required = true): ?array
         if (!$user) {
             bc_v1_json_error(401, 'session_user_not_found', 'Session user no longer exists.');
         }
+        $canUseAllScope = bc_v1_can_use_all_scope($user);
+        $activeScope = bc_v1_normalize_active_scope((string) ($_SESSION['active_scope'] ?? ''), $canUseAllScope, (int) ($_SESSION['active_org_id'] ?? 0));
         $activeOrgId = (int) ($_SESSION['active_org_id'] ?? 0);
-        if ($activeOrgId <= 0) {
-            $activeOrgId = (int) ($user['last_active_org_id'] ?? 0);
+        if ($activeScope === 'org') {
+            if ($activeOrgId <= 0) {
+                $activeOrgId = (int) ($user['last_active_org_id'] ?? 0);
+            }
+            if ($activeOrgId > 0 && !bc_v1_has_membership($conn, $activeOrgId, (int) $user['id'])) {
+                $activeOrgId = bc_v1_first_org_id($conn, (int) $user['id']);
+            }
+            $activeScope = bc_v1_normalize_active_scope($activeScope, $canUseAllScope, $activeOrgId);
+        } else {
+            $activeOrgId = 0;
         }
         return [
             'auth_type' => 'session',
             'user' => $user,
             'active_org_id' => $activeOrgId,
+            'active_scope' => $activeScope,
             'token_payload' => null,
         ];
     }
@@ -393,12 +490,18 @@ function bc_v1_bridge_session_auth(mysqli $conn, bool $required = true): ?array
     $_SESSION['username'] = (string) $user['username'];
     $_SESSION['role'] = (string) $user['role'];
 
+    $activeScope = bc_v1_normalize_active_scope((string) ($actor['active_scope'] ?? ''), bc_v1_can_use_all_scope($user), (int) ($actor['active_org_id'] ?? 0));
     $activeOrgId = (int) ($actor['active_org_id'] ?? 0);
-    if ($activeOrgId > 0 && !bc_v1_has_membership($conn, $activeOrgId, (int) $user['id'])) {
+    if ($activeScope === 'org') {
+        if ($activeOrgId > 0 && !bc_v1_has_membership($conn, $activeOrgId, (int) $user['id'])) {
+            $activeOrgId = 0;
+        }
+        if ($activeOrgId <= 0) {
+            $activeOrgId = bc_v1_first_org_id($conn, (int) $user['id']);
+        }
+        $activeScope = bc_v1_normalize_active_scope($activeScope, bc_v1_can_use_all_scope($user), $activeOrgId);
+    } else {
         $activeOrgId = 0;
-    }
-    if ($activeOrgId <= 0) {
-        $activeOrgId = bc_v1_first_org_id($conn, (int) $user['id']);
     }
 
     if ($activeOrgId > 0) {
@@ -406,6 +509,7 @@ function bc_v1_bridge_session_auth(mysqli $conn, bool $required = true): ?array
     } else {
         unset($_SESSION['active_org_id']);
     }
+    $_SESSION['active_scope'] = $activeScope;
 
     return $actor;
 }
@@ -444,6 +548,7 @@ function bc_v1_org_context(mysqli $conn, array $actor, int $orgId = 0): array
         'is_org_owner' => (int) ($membership['owner_id'] ?? 0) === $userId,
         'user_id' => $userId,
         'system_role' => (string) ($actor['user']['role'] ?? 'user'),
+        'active_scope' => 'org',
     ];
 }
 

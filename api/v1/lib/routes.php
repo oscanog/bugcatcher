@@ -12,6 +12,7 @@ require_once __DIR__ . '/realtime.php';
 require_once __DIR__ . '/admin_ai.php';
 require_once __DIR__ . '/admin_openclaw.php';
 require_once __DIR__ . '/ai_chat.php';
+require_once __DIR__ . '/checklist.php';
 require_once __DIR__ . '/aliases.php';
 
 function bc_v1_routes(): array
@@ -104,6 +105,9 @@ function bc_v1_routes(): array
         ['method' => 'POST', 'pattern' => '/ai-chat/generated-items/{id}/reject', 'handler' => 'bc_v1_ai_chat_generated_items_id_reject_post'],
         ['method' => 'POST', 'pattern' => '/ai-chat/threads/{id}/messages/stream', 'handler' => 'bc_v1_ai_chat_threads_messages_stream_post'],
 
+        ['method' => 'GET', 'pattern' => '/checklist/batches', 'handler' => 'bc_v1_checklist_batches_get'],
+        ['method' => 'GET', 'pattern' => '/checklist/batches/{id}', 'handler' => 'bc_v1_checklist_batch_get'],
+        ['method' => 'GET', 'pattern' => '/checklist/items/{id}', 'handler' => 'bc_v1_checklist_item_get'],
         ['method' => 'ANY', 'pattern' => '/checklist/batches', 'handler' => 'bc_v1_alias_checklist_batches'],
         ['method' => 'ANY', 'pattern' => '/checklist/batch', 'handler' => 'bc_v1_alias_checklist_batch'],
         ['method' => 'ANY', 'pattern' => '/checklist/batches/{id}', 'handler' => 'bc_v1_alias_checklist_batch_by_id'],
