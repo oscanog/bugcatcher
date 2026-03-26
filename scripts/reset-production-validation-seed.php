@@ -679,6 +679,17 @@ foreach ($extraOrgNames as $extraOrgName) {
 }
 $membershipStmt->close();
 
+$pruneExtraOrgStmt = $conn->prepare("
+    DELETE FROM org_members
+    WHERE org_id = ?
+      AND user_id NOT IN (?, ?)
+");
+foreach ($extraOrgIds as $extraOrgId) {
+    $pruneExtraOrgStmt->bind_param('iii', $extraOrgId, $superAdminId, $adminId);
+    $pruneExtraOrgStmt->execute();
+}
+$pruneExtraOrgStmt->close();
+
 $updateActiveOrgStmt = $conn->prepare("
     UPDATE users
     SET last_active_org_id = ?
