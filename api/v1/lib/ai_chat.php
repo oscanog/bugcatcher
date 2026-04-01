@@ -483,7 +483,9 @@ function bugcatcher_ai_chat_thread_context_shape(mysqli $conn, array $thread): a
     $targetMode = (string) ($thread['checklist_target_mode'] ?? '');
     $isReady = $projectId > 0 && in_array($targetMode, ['new', 'existing'], true);
     if ($isReady && $targetMode === 'existing') {
-        $isReady = $existingBatchId > 0 && $pageUrl !== '';
+        $isReady = $existingBatchId > 0
+            && trim((string) ($thread['checklist_module_name'] ?? '')) !== ''
+            && $pageUrl !== '';
     }
     if ($isReady && $targetMode === 'new') {
         $isReady = trim((string) ($thread['checklist_batch_title'] ?? '')) !== ''
@@ -672,7 +674,7 @@ function bugcatcher_ai_chat_thread_has_ready_context(array $thread): bool
     }
 
     if ($context['target_mode'] === 'existing') {
-        return $context['existing_batch_id'] > 0 && $context['page_url'] !== '';
+        return $context['existing_batch_id'] > 0 && $context['module_name'] !== '' && $context['page_url'] !== '';
     }
 
     return $context['batch_title'] !== '' && $context['module_name'] !== '' && $context['page_url'] !== '';
@@ -706,14 +708,24 @@ function bugcatcher_ai_chat_validate_draft_context(mysqli $conn, int $orgId, arr
             throw new RuntimeException('Link is required and must be a valid http:// or https:// URL for this checklist target.');
         }
 
+        $batchModuleName = trim((string) ($batch['module_name'] ?? ''));
+        $batchSubmoduleName = trim((string) ($batch['submodule_name'] ?? ''));
+        $requestedModuleName = trim((string) ($payload['module_name'] ?? ''));
+        $requestedSubmoduleName = trim((string) ($payload['submodule_name'] ?? ''));
+        $moduleName = $requestedModuleName !== '' ? $requestedModuleName : $batchModuleName;
+        $submoduleName = array_key_exists('submodule_name', $payload) ? $requestedSubmoduleName : $batchSubmoduleName;
+        if ($moduleName === '') {
+            throw new RuntimeException('Module name is required for an existing checklist batch target.');
+        }
+
         return [
             'project_id' => $projectId,
             'source_mode' => $sourceMode,
             'target_mode' => 'existing',
             'existing_batch_id' => (int) $batch['id'],
             'batch_title' => trim((string) ($batch['title'] ?? '')),
-            'module_name' => trim((string) ($batch['module_name'] ?? '')),
-            'submodule_name' => trim((string) ($batch['submodule_name'] ?? '')),
+            'module_name' => $moduleName,
+            'submodule_name' => $submoduleName,
             'page_url' => $pageUrl,
         ];
     }
