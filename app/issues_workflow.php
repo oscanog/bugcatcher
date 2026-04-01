@@ -19,8 +19,8 @@ const BUGCATCHER_ISSUE_WORKFLOW_STATES = [
 const BUGCATCHER_ISSUE_WORKFLOW_FILTERS = ['all', 'open', 'closed'];
 const BUGCATCHER_ISSUE_WORKFLOW_LABELS = [
     'unassigned' => 'Unassigned',
-    'with_senior' => 'With Senior',
-    'with_junior' => 'With Junior',
+    'with_senior' => 'With Senior Dev',
+    'with_junior' => 'With Junior Dev',
     'done_by_junior' => 'Ready for QA',
     'with_qa' => 'With QA',
     'with_senior_qa' => 'With Senior QA',
@@ -42,8 +42,8 @@ const BUGCATCHER_ISSUE_WORKFLOW_LANES = [
         'rejected',
     ]],
     ['key' => 'unassigned', 'label' => 'Unassigned', 'type' => 'workflow', 'states' => ['unassigned']],
-    ['key' => 'with_senior', 'label' => 'With Senior', 'type' => 'workflow', 'states' => ['with_senior']],
-    ['key' => 'with_junior', 'label' => 'With Junior', 'type' => 'workflow', 'states' => ['with_junior']],
+    ['key' => 'with_senior', 'label' => 'With Senior Dev', 'type' => 'workflow', 'states' => ['with_senior']],
+    ['key' => 'with_junior', 'label' => 'With Junior Dev', 'type' => 'workflow', 'states' => ['with_junior']],
     ['key' => 'done_by_junior', 'label' => 'Ready for QA', 'type' => 'workflow', 'states' => ['done_by_junior']],
     ['key' => 'with_qa', 'label' => 'With QA', 'type' => 'workflow', 'states' => ['with_qa']],
     ['key' => 'with_senior_qa', 'label' => 'With Senior QA', 'type' => 'workflow', 'states' => ['with_senior_qa']],

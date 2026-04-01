@@ -1296,12 +1296,24 @@ foreach ($issuesRows as &$row) {
   $row['attachment_count'] = $attachmentCounts[$issueId] ?? 0;
   $row['labels'] = $issueLabels[$issueId] ?? [];
 
+  $matchingWorkflowLaneKeys = [];
+  $matchingOverviewLaneKeys = [];
   foreach (bugcatcher_issue_workflow_lanes() as $lane) {
     $laneKey = (string) ($lane['key'] ?? '');
     $laneStates = $lane['states'] ?? [];
     if (in_array($workflowStatus, $laneStates, true)) {
-      $issuesByLane[$laneKey][] = $row;
+      $laneType = (string) ($lane['type'] ?? 'workflow');
+      if ($laneType === 'overview') {
+        $matchingOverviewLaneKeys[] = $laneKey;
+      } else {
+        $matchingWorkflowLaneKeys[] = $laneKey;
+      }
     }
+  }
+
+  $laneKeysToAssign = $matchingWorkflowLaneKeys ?: $matchingOverviewLaneKeys;
+  foreach ($laneKeysToAssign as $laneKey) {
+    $issuesByLane[$laneKey][] = $row;
   }
 }
 unset($row);
