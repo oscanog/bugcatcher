@@ -658,39 +658,23 @@ function checklist_api_change_item_status(mysqli $conn, array $context, int $ite
     }
 
     $normalizedStatus = bugcatcher_checklist_normalize_enum($newStatus, BUGCATCHER_CHECKLIST_STATUSES, (string) $item['status']);
-    $allowed = false;
-    if (
-        in_array((string) $item['status'], ['open', 'in_progress'], true) &&
-        in_array($normalizedStatus, ['in_progress', 'passed', 'failed', 'blocked'], true)
-    ) {
-        $allowed = true;
-    }
-    if (
-        in_array((string) $item['status'], ['failed', 'blocked'], true) &&
-        in_array($normalizedStatus, ['in_progress', 'passed'], true) &&
-        bugcatcher_checklist_is_manager_role((string) $context['org_role'])
-    ) {
-        $allowed = true;
-    }
-    if ($normalizedStatus === (string) $item['status']) {
-        $allowed = true;
-    }
+    $allowed = bugcatcher_checklist_can_transition_status(
+        (string) $item['status'],
+        $normalizedStatus,
+        (string) $context['org_role']
+    );
 
     if (!$allowed) {
         checklist_api_json_error(422, 'invalid_transition', 'That status transition is not allowed.');
     }
 
-    $startedAt = $item['started_at'];
-    $completedAt = $item['completed_at'];
-    if ($normalizedStatus === 'in_progress' && !$startedAt) {
-        $startedAt = date('Y-m-d H:i:s');
-    }
-    if (in_array($normalizedStatus, ['passed', 'failed', 'blocked'], true)) {
-        $completedAt = date('Y-m-d H:i:s');
-    }
-    if ($normalizedStatus === 'in_progress') {
-        $completedAt = null;
-    }
+    $timestamps = bugcatcher_checklist_resolve_status_timestamps(
+        $normalizedStatus,
+        (string) ($item['started_at'] ?? ''),
+        (string) ($item['completed_at'] ?? '')
+    );
+    $startedAt = $timestamps['started_at'];
+    $completedAt = $timestamps['completed_at'];
 
     $stmt = $conn->prepare("
         UPDATE checklist_items

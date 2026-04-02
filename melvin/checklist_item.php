@@ -59,31 +59,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         $newStatus = bugcatcher_checklist_normalize_enum($_POST['status'] ?? 'open', BUGCATCHER_CHECKLIST_STATUSES, $item['status']);
-        $allowed = false;
-        if (in_array($item['status'], ['open', 'in_progress'], true) && in_array($newStatus, ['in_progress', 'passed', 'failed', 'blocked'], true)) {
-            $allowed = true;
-        }
-        if (in_array($item['status'], ['failed', 'blocked'], true) && in_array($newStatus, ['in_progress', 'passed'], true) && $isChecklistManager) {
-            $allowed = true;
-        }
-        if ($newStatus === $item['status']) {
-            $allowed = true;
-        }
+        $allowed = bugcatcher_checklist_can_transition_status(
+            (string) $item['status'],
+            $newStatus,
+            (string) $context['org_role']
+        );
 
         if (!$allowed) {
             $error = 'That status transition is not allowed.';
         } else {
-            $startedAt = $item['started_at'];
-            $completedAt = $item['completed_at'];
-            if ($newStatus === 'in_progress' && !$startedAt) {
-                $startedAt = date('Y-m-d H:i:s');
-            }
-            if (in_array($newStatus, ['passed', 'failed', 'blocked'], true)) {
-                $completedAt = date('Y-m-d H:i:s');
-            }
-            if ($newStatus === 'in_progress') {
-                $completedAt = null;
-            }
+            $timestamps = bugcatcher_checklist_resolve_status_timestamps(
+                $newStatus,
+                (string) ($item['started_at'] ?? ''),
+                (string) ($item['completed_at'] ?? '')
+            );
+            $startedAt = $timestamps['started_at'];
+            $completedAt = $timestamps['completed_at'];
 
             $stmt = $conn->prepare("
                 UPDATE checklist_items
